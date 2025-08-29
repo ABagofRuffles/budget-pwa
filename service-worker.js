@@ -1,4 +1,4 @@
-const CACHE = 'qb-cache-v1';
+const CACHE = 'qb-cache-v2';
 const ASSETS = [
   './',
   './index.html',
