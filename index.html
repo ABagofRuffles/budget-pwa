@@ -26,6 +26,9 @@
     .neg { color:#b91c1c; }
     .pos { color:#0369a1; }
     small { color:#64748b; }
+    h2 { font-size:16px; margin:0 0 8px; }
+    h3 { font-size:14px; margin:8px 0 4px; }
+    .subtotal, .section-total { text-align:right; font-weight:bold; margin-top:4px; }
   </style>
 </head>
 <body>
@@ -95,6 +98,8 @@
     <ul id="list"></ul>
   </div>
 
+  <div id="worksheet"></div>
+
   <script>
     // --- Storage helpers (local only) ---
     const KEY = 'qb_txns_v1';
@@ -115,8 +120,163 @@
     const expenseTotalEl = document.getElementById('expenseTotal');
     const netTotalEl = document.getElementById('netTotal');
     const exportBtn = document.getElementById('exportBtn');
+    const worksheetEl = document.getElementById('worksheet');
 
     let txns = load();
+
+    // --- Worksheet storage ---
+    const WS_KEY = 'qb_ws_v1';
+    let wsData = JSON.parse(localStorage.getItem(WS_KEY) || '{}');
+
+    const WORKSHEET = [
+      { title: 'Monthly Household Income', items: [
+        'Primary take-home pay',
+        'Secondary take-home pay',
+        'Child support',
+        'Alimony',
+        'Other'
+      ]},
+      { title: 'Monthly Essential Expenses (Things You Need to Have)', categories: [
+        { name: 'Housing', items: ['Mortgage or rent', 'Property taxes', 'Home/Renter\'s insurance', 'Other'] },
+        { name: 'Utilities', items: ['Electricity', 'Natural gas', 'Water/Sewer', 'Cell phone', 'Internet/Cable', 'Trash'] },
+        { name: 'Food', items: ['Groceries', 'Dining out', 'School/work lunches'] },
+        { name: 'Transportation', items: ['Gas', 'Parking/Tolls', 'Maintenance', 'Public transportation'] },
+        { name: 'Debt & Monthly Obligations', items: ['Credit card payments', 'Student loan payments', 'Child support', 'Alimony', 'Personal loan payments', 'Other debt'] },
+        { name: 'Healthcare', items: ['Health insurance', 'Dental insurance', 'Medication', 'Medical bills', 'Other'] }
+      ]},
+      { title: 'Monthly Discretionary Expenses (Things You Want)', categories: [
+        { name: 'Child & Dependent Care', items: ['Daycare/After-school', 'Babysitting', 'Summer camps', 'Other'] },
+        { name: 'Education', items: ['Tuition', 'Books/Supplies', 'Student fees', 'Other'] },
+        { name: 'Personal Care', items: ['Haircuts', 'Salon services', 'Gym memberships', 'Cosmetics/Toiletries'] },
+        { name: 'Clothing', items: ['Adult clothing', 'Children\'s clothing', 'Dry cleaning', 'Laundry'] },
+        { name: 'Gifts', items: ['Birthdays', 'Holidays', 'Charitable donations', 'Other'] },
+        { name: 'Recreational', items: ['Hobbies', 'Vacation', 'Sporting events', 'Other'] },
+        { name: 'Entertainment', items: ['Movies', 'Concerts', 'Streaming/Subscriptions', 'Other'] }
+      ]},
+      { title: 'Other Monthly Expenses', items: ['Miscellaneous'] }
+    ];
+
+    function saveWorksheet(){
+      localStorage.setItem(WS_KEY, JSON.stringify(wsData));
+    }
+
+    function renderWorksheet(){
+      worksheetEl.innerHTML = '';
+      WORKSHEET.forEach((section, si)=>{
+        const card = document.createElement('div');
+        card.className = 'card';
+        const h2 = document.createElement('h2');
+        h2.textContent = section.title;
+        card.appendChild(h2);
+
+        if(section.items){
+          section.items.forEach((item, ii)=>{
+            const label = document.createElement('label');
+            label.textContent = item;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.inputMode = 'decimal';
+            const key = `${si}-0-${ii}`;
+            if(wsData[key] !== undefined) input.value = wsData[key];
+            input.addEventListener('input', ()=>{
+              wsData[key] = parseFloat(input.value)||0;
+              saveWorksheet();
+              updateWorksheetTotals();
+            });
+            card.appendChild(label);
+            card.appendChild(input);
+          });
+        }
+
+        if(section.categories){
+          section.categories.forEach((cat, ci)=>{
+            const h3 = document.createElement('h3');
+            h3.textContent = cat.name;
+            card.appendChild(h3);
+            cat.items.forEach((item, ii)=>{
+              const label = document.createElement('label');
+              label.textContent = item;
+              const input = document.createElement('input');
+              input.type = 'number';
+              input.step = '0.01';
+              input.inputMode = 'decimal';
+              const key = `${si}-${ci}-${ii}`;
+              if(wsData[key] !== undefined) input.value = wsData[key];
+              input.addEventListener('input', ()=>{
+                wsData[key] = parseFloat(input.value)||0;
+                saveWorksheet();
+                updateWorksheetTotals();
+              });
+              card.appendChild(label);
+              card.appendChild(input);
+            });
+            const ctotal = document.createElement('div');
+            ctotal.className = 'subtotal';
+            ctotal.id = `cat-${si}-${ci}-total`;
+            ctotal.textContent = 'Subtotal: $0.00';
+            card.appendChild(ctotal);
+          });
+        }
+
+        const stotal = document.createElement('div');
+        stotal.className = 'section-total';
+        stotal.id = `sec-${si}-total`;
+        stotal.textContent = 'Section Total: $0.00';
+        card.appendChild(stotal);
+
+        worksheetEl.appendChild(card);
+      });
+
+      const summary = document.createElement('div');
+      summary.className = 'card';
+      summary.innerHTML = `
+        <h2>Summary</h2>
+        <div class="totals">
+          <div class="pill"><div><small>Income</small></div><strong id="ws-income-total">$0.00</strong></div>
+          <div class="pill"><div><small>Essential</small></div><strong id="ws-essential-total">$0.00</strong></div>
+          <div class="pill"><div><small>Discretionary</small></div><strong id="ws-discretionary-total">$0.00</strong></div>
+          <div class="pill"><div><small>Other</small></div><strong id="ws-other-total">$0.00</strong></div>
+          <div class="pill"><div><small>Expenses Total</small></div><strong id="ws-expenses-total">$0.00</strong></div>
+        </div>`;
+      worksheetEl.appendChild(summary);
+
+      updateWorksheetTotals();
+    }
+
+    function updateWorksheetTotals(){
+      const totals = [0,0,0,0];
+      WORKSHEET.forEach((section, si)=>{
+        let secSum = 0;
+        if(section.items){
+          section.items.forEach((item, ii)=>{
+            const key = `${si}-0-${ii}`;
+            const val = wsData[key] || 0;
+            secSum += val;
+          });
+        }
+        if(section.categories){
+          section.categories.forEach((cat, ci)=>{
+            let catSum = 0;
+            cat.items.forEach((item, ii)=>{
+              const key = `${si}-${ci}-${ii}`;
+              const val = wsData[key] || 0;
+              catSum += val;
+            });
+            document.getElementById(`cat-${si}-${ci}-total`).textContent = 'Subtotal: ' + fmt(catSum);
+            secSum += catSum;
+          });
+        }
+        document.getElementById(`sec-${si}-total`).textContent = 'Section Total: ' + fmt(secSum);
+        totals[si] = secSum;
+      });
+      const [inc, ess, dis, other] = totals;
+      document.getElementById('ws-income-total').textContent = fmt(inc);
+      document.getElementById('ws-essential-total').textContent = fmt(ess);
+      document.getElementById('ws-discretionary-total').textContent = fmt(dis);
+      document.getElementById('ws-other-total').textContent = fmt(other);
+      document.getElementById('ws-expenses-total').textContent = fmt(ess + dis + other);
+    }
 
     function fmt(n){ return (n<0?'-':'') + '$' + Math.abs(n).toFixed(2); }
 
@@ -174,7 +334,7 @@
     addBtn.addEventListener('click', add);
     searchEl.addEventListener('input', render);
     filterTypeEl.addEventListener('change', render);
-    document.addEventListener('DOMContentLoaded', render);
+    document.addEventListener('DOMContentLoaded', () => { render(); renderWorksheet(); });
 
     // Export CSV
     exportBtn.addEventListener('click', ()=>{
