@@ -10,7 +10,8 @@
   <meta name="color-scheme" content="light dark">
   <style>
     :root { font-family: -apple-system, system-ui, sans-serif; }
-    body { margin: 0; padding: 16px; }
+    * { box-sizing: border-box; }
+    body { margin: 0 auto; padding: 16px; max-width:600px; }
     header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
     h1 { font-size: 20px; margin: 0; }
     .card { border: 1px solid #eee; border-radius:12px; padding:12px; margin-bottom:12px; }
@@ -19,8 +20,8 @@
     button { border:0; }
     .btn { background:#0f766e; color:white; }
     .ghost { background:#f1f5f9; }
-    .row { display:flex; gap:8px; }
-    .row > * { flex:1; }
+    .row { display:flex; flex-wrap:wrap; gap:8px; }
+    .row > * { flex:1 1 200px; min-width:0; }
     .totals { display:flex; gap:8px; }
     .pill { flex:1; background:#f8fafc; border:1px solid #eef; border-radius:12px; padding:8px; text-align:center; }
     ul { list-style:none; padding:0; margin:0; }
@@ -31,6 +32,10 @@
     h2 { font-size:16px; margin:0 0 8px; }
     h3 { font-size:14px; margin:8px 0 4px; }
     .subtotal, .section-total { text-align:right; font-weight:bold; margin-top:4px; }
+    @media (max-width: 600px) {
+      .row { flex-direction:column; }
+      body { padding:12px; }
+    }
     @media (prefers-color-scheme: dark) {
       body { background:#0f172a; color:#f8fafc; }
       .card { background:#1e293b; border-color:#334155; }
