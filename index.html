@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>QuickBudget</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
   <style>
     :root { font-family: -apple-system, system-ui, sans-serif; }
     body { margin: 0; padding: 16px; }
@@ -29,6 +31,17 @@
     h2 { font-size:16px; margin:0 0 8px; }
     h3 { font-size:14px; margin:8px 0 4px; }
     .subtotal, .section-total { text-align:right; font-weight:bold; margin-top:4px; }
+    @media (prefers-color-scheme: dark) {
+      body { background:#0f172a; color:#f8fafc; }
+      .card { background:#1e293b; border-color:#334155; }
+      .ghost { background:#1e293b; color:#f8fafc; }
+      input, select, button { background:#334155; color:#f8fafc; border:1px solid #475569; }
+      .pill { background:#334155; border-color:#475569; }
+      li { border-bottom-color:#334155; }
+      .neg { color:#f87171; }
+      .pos { color:#38bdf8; }
+      small { color:#94a3b8; }
+    }
   </style>
 </head>
 <body>
