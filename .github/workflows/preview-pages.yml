@@ -1,92 +1,86 @@
 name: PR Preview (GitHub Pages)
 
 on:
-  # Trigger when a pull request targets your main branch.
-  # 'pull_request_target' runs in the base (main) context,
-  # which is required since your github-pages environment
-  # only allows deployments from main.
+  # Run this workflow when someone opens, updates, or reopens
+  # a pull request targeting your main branch.
+  # 'pull_request_target' executes in the context of the base branch (main),
+  # which satisfies GitHub Pages environment protection rules.
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read           # Allows reading repo files
-  pages: write             # Needed to publish to GitHub Pages
-  id-token: write          # Used for secure OIDC authentication
-  pull-requests: write     # Allows posting a comment with the preview link
+  contents: read           # Allows read access to repository contents
+  pages: write             # Grants permission to publish to GitHub Pages
+  id-token: write          # Enables OpenID Connect authentication (required for Pages)
+  pull-requests: write     # Lets this workflow post comments on pull requests
 
 concurrency:
-  # Ensures only one preview deploy per PR at a time.
-  # Cancels older runs if you push new commits.
+  # This ensures there’s only one preview deployment per PR.
+  # If new commits are pushed to the same PR, older runs are canceled.
   group: pages-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   build:
-    # Only run if the PR is from the same repo (not from a fork)
-    # This avoids permission issues for outside contributors.
+    # Security check: only run this workflow for PRs created in this same repo.
+    # This prevents untrusted forked repos from running your deployment code.
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # GitHub's latest Ubuntu runner image
 
     steps:
-      # 1. Checkout the PR code that we want to preview.
-      #    The 'ref' ensures we build the actual commit.
+      # 1️⃣ Check out the pull request branch at the exact commit being tested.
       - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # 2. Set up Node.js (explicit version for stability)
-      #    We use version 20 to avoid 'lts/*' resolution issues.
+      # 2️⃣ Install Node.js — version 20 chosen for compatibility and stability.
+      #     We removed caching since you don’t have a package-lock.json file.
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'                     # Cache dependencies for faster builds
-          cache-dependency-path: package-lock.json
 
-      # 3. Install dependencies and build your project.
-      #    If there's a package-lock.json, use npm ci for reproducible builds.
+      # 3️⃣ Install dependencies and build your project.
+      #     `npm install` works even without a lockfile.
+      #     `npm run build` should create your final static files.
       - name: Install & build
         env:
-          CI: true                         # Ensures production mode
+          CI: true                     # Forces production mode for consistency
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci                         # Clean install using lockfile
-          else
-            npm install --no-audit --no-fund
-          fi
-          npm run build                    # Your build script (edit if different)
+          npm install --no-audit --no-fund
+          npm run build
 
-      # 4. Upload the built static site as an artifact.
-      #    GitHub Pages will later deploy this artifact.
-      #    Change './dist' if your build output folder differs.
+      # 4️⃣ Upload the built output so the deploy job can access it.
+      #     Replace "./dist" with your actual build output folder if needed.
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist                     # e.g., './build' for React CRA
+          path: ./dist                 # e.g., "./build" for React apps
 
   deploy:
-    # Wait for the build job to finish
+    # Wait for the build job to finish successfully
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: github-pages                  # Match your environment name
+      name: github-pages              # Must match your GitHub Pages environment name
 
     steps:
-      # 5. Configure GitHub Pages to prepare deployment.
+      # 5️⃣ Configure GitHub Pages (prepares environment settings)
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # 6. Deploy the uploaded artifact as a preview site.
-      #    Setting 'preview: true' makes it temporary per PR.
+      # 6️⃣ Deploy the preview version of your site.
+      #     The "preview: true" flag ensures this is a temporary preview deployment,
+      #     separate from your main production site.
       - name: Deploy Preview
         id: deploy
         uses: actions/deploy-pages@v4
         with:
           preview: true
 
-      # 7. Add a comment to the PR with the preview URL.
-      #    Makes it easy to click and view the live preview.
+      # 7️⃣ Post a friendly, formatted comment on the PR with the preview link.
+      #     The URL is auto-generated by GitHub Pages for that PR.
       - name: Comment preview link
         uses: actions/github-script@v7
         with:
@@ -97,6 +91,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `🚀 Preview available: ${url}`
+                body: `**✨ Live Preview Ready!**\n\n🔗 [View Preview Site](${url})`
               })
             }
