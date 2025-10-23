@@ -1,8 +1,9 @@
 name: Preview Pull Requests
 
 on:
-  pull_request:
-    # We build a preview when a pull request is opened, updated, or reopened.
+  pull_request_target:
+    # Run in the base-branch context so Deploy Pages sees "main" and passes the GitHub Pages branch protection checks.
+    # Build previews for pull requests whenever their commits change or they re-open.
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -19,18 +20,20 @@ concurrency:
 jobs:
   preview:
     name: Build and publish preview
-    # Skip forked pull requests because they only receive read-only tokens that cannot deploy previews.
+    # Skip forked pull requests to avoid running untrusted code with elevated permissions.
     if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     environment:
-      # Use a dedicated preview environment so protected production branches keep their restrictions.
-      name: preview-pages
+      # The Deploy Pages action always publishes to the built-in github-pages environment.
+      name: github-pages
       url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
 
     steps:
       - name: Checkout repository
-        # Fetch the pull request so we build the preview from the proposed changes.
+        # pull_request_target runs in the context of the base branch, so explicitly check out the PR head commit.
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure Pages
         # Prepares the workflow to upload a static site artifact for GitHub Pages.
@@ -56,17 +59,48 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const core = require('@actions/core');
             const previewUrl = '${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}';
-            const body = `🚀 A preview of this pull request is ready: ${previewUrl}
+            const marker = '<!-- preview-pages-bot -->';
 
-            **How to view**
-            • Tap the link above from your phone, or
-            • Open the "Deployments" panel on this pull request and choose **View deployment**.
+            if (!previewUrl) {
+              core.setFailed('The Deploy Pages action did not return a preview URL.');
+              return;
+            }
 
-            This preview updates automatically whenever you push new commits to this PR.`;
-            await github.rest.issues.createComment({
+            const lines = [
+              marker,
+              `🚀 A preview of this pull request is ready: ${previewUrl}`,
+              '',
+              '**How to view**',
+              '• Tap the link above from your phone, or',
+              '• Open the "Deployments" panel on this pull request and choose **View deployment**.',
+              '',
+              'This preview updates automatically whenever you push new commits to this PR.',
+            ];
+            const body = lines.join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body
+              per_page: 100,
             });
+
+            const existing = comments.find((comment) => comment.body?.includes(marker) && comment.user?.type === 'Bot');
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
