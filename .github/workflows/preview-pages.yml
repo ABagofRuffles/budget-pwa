@@ -1,0 +1,61 @@
+name: Preview Pull Requests
+
+on:
+  pull_request:
+    # We build a preview when a pull request is opened, updated, or reopened.
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  # Ensure only one preview build runs per pull request so updates replace older previews.
+  group: 'preview-${{ github.event.pull_request.number }}'
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Build and publish preview
+    runs-on: ubuntu-latest
+    environment:
+      # The preview uses the GitHub Pages environment so the URL is shown in the PR UI.
+      name: github-pages
+      url: ${{ steps.preview.outputs.preview_url }}
+
+    steps:
+      - name: Checkout repository
+        # Fetch the pull request so we build the preview from the proposed changes.
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        # Prepares the workflow to upload a static site artifact for GitHub Pages.
+        uses: actions/configure-pages@v5
+
+      - name: Upload static site
+        # Upload the root of the repository because this project is a static PWA.
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./
+
+      - name: Deploy preview
+        id: preview
+        # Publish an ephemeral preview using the official Preview Pages action (free for public repos).
+        uses: actions/preview-pages@v1
+
+      - name: Share preview link on the pull request
+        # Comment the preview URL so it is easy to open from a phone or any device.
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `🚀 A preview of this pull request is ready: ${{ steps.preview.outputs.preview_url }}\n\n` +
+              `Open the link above to view the progressive web app. The preview is rebuilt automatically whenever you push new commits to this PR.`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
