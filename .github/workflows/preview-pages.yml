@@ -35,7 +35,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: false          # 👈 disable caching explicitly
 
       # 3️⃣ Install dependencies and build your project
       #     Works even if you don’t have a package-lock.json
