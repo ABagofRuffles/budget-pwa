@@ -25,7 +25,7 @@ jobs:
     environment:
       # Use a dedicated preview environment so protected production branches keep their restrictions.
       name: preview-pages
-      url: ${{ steps.preview.outputs.preview_url }}
+      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
 
     steps:
       - name: Checkout repository
@@ -44,8 +44,11 @@ jobs:
 
       - name: Deploy preview
         id: preview
-        # Publish an ephemeral preview using the official Preview Pages action (free for public repos).
-        uses: actions/preview-pages@v1
+        # Publish an ephemeral preview using the official Deploy Pages action in preview mode (free for public repos).
+        uses: actions/deploy-pages@v4
+        with:
+          # Setting preview to true tells Deploy Pages to create an ephemeral pull request preview instead of publishing to production.
+          preview: true
 
       - name: Share preview link on the pull request
         # Comment the preview URL so it is easy to open from a phone or any device.
@@ -53,7 +56,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = `🚀 A preview of this pull request is ready: ${{ steps.preview.outputs.preview_url }}
+            const previewUrl = '${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}';
+            const body = `🚀 A preview of this pull request is ready: ${previewUrl}
 
             **How to view**
             • Tap the link above from your phone, or
