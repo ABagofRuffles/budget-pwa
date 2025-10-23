@@ -1,8 +1,8 @@
 name: Preview Pull Requests
 
 on:
-  pull_request:
-    # Build a preview for every update to the pull request so changes can be reviewed before merging.
+  pull_request_target:
+    # Run from the default branch context so the protected github-pages environment accepts the deployment.
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
