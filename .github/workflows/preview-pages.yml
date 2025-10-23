@@ -1,10 +1,9 @@
 name: Preview Pull Requests
 
 on:
-  pull_request_target:
-    # Run in the base-branch context so Deploy Pages sees "main" and passes the GitHub Pages branch protection checks.
-    # Build previews for pull requests whenever their commits change or they re-open.
-    types: [opened, synchronize, reopened]
+  pull_request:
+    # Build a preview for every update to the pull request so changes can be reviewed before merging.
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
@@ -18,19 +17,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  preview:
-    name: Build and publish preview
+  build:
+    name: Build static site
     # Skip forked pull requests to avoid running untrusted code with elevated permissions.
     if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
-    environment:
-      # The Deploy Pages action always publishes to the built-in github-pages environment.
-      name: github-pages
-      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
 
     steps:
       - name: Checkout repository
-        # pull_request_target runs in the context of the base branch, so explicitly check out the PR head commit.
+        # Use the pull request head so the preview matches the code under review.
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -45,6 +40,17 @@ jobs:
         with:
           path: ./
 
+  deploy:
+    name: Publish preview
+    needs: build
+    if: github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    environment:
+      # The Deploy Pages action always publishes to the built-in github-pages environment.
+      name: github-pages
+      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
+
+    steps:
       - name: Deploy preview
         id: preview
         # Publish an ephemeral preview using the official Deploy Pages action in preview mode (free for public repos).
