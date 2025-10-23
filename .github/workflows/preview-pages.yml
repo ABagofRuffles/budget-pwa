@@ -21,67 +21,62 @@ concurrency:
 
 jobs:
   build:
-    # Only run if the PR comes from within this same repo (not a fork)
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Check out the pull request branch at the specific commit being tested
+      # 1️⃣ Check out the pull request branch
       - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # 2️⃣ Set up Node.js (no caching, since no lockfile exists)
+      # 2️⃣ Setup Node.js (no caching)
       - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # 3️⃣ Install dependencies and build your project
-      #     Explicitly cd into repo root so npm finds package.json correctly.
+      # 3️⃣ Install dependencies and build the project
+      #     The repo is already in the correct directory
       - name: Install & build
         env:
           CI: true
         run: |
-          cd $GITHUB_WORKSPACE  # ensures correct working directory
           npm install --no-audit --no-fund
           npm run build
 
-      # 4️⃣ Upload the built site (the folder GitHub Pages will deploy)
-      #     Replace './dist' if your build output is in a different folder.
+      # 4️⃣ Upload the built site for deployment
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist  # change to ./build if you use React or another framework
+          path: ./dist  # change if your output is in ./build or another directory
 
   deploy:
-    # Wait for build job to finish successfully
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
 
     steps:
-      # 5️⃣ Configure GitHub Pages for deployment
+      # 5️⃣ Configure GitHub Pages
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # 6️⃣ Deploy a temporary preview site for this PR
+      # 6️⃣ Deploy the preview site for the PR
       - name: Deploy Preview
         id: deploy
         uses: actions/deploy-pages@v4
         with:
           preview: true
 
-      # 7️⃣ Post (or update) a comment on the PR with the preview link
+      # 7️⃣ Comment or update the PR with the live preview link
       - name: Comment preview link
         uses: actions/github-script@v7
         with:
           script: |
             const url = '${{ steps.deploy.outputs.preview_url }}'
             if (url) {
-              // Find any previous preview comment
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -89,11 +84,9 @@ jobs:
               });
 
               const existing = comments.find(c => c.body && c.body.includes('✨ Live Preview Ready!'));
-
               const body = `**✨ Live Preview Ready!**\n\n🔗 [View Preview Site](${url})`;
 
               if (existing) {
-                // Update the existing preview comment instead of posting a new one
                 await github.rest.issues.updateComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -101,7 +94,6 @@ jobs:
                   body,
                 });
               } else {
-                // Create a new comment if none exists yet
                 await github.rest.issues.createComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
