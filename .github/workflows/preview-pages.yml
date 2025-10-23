@@ -1,102 +1,85 @@
-name: Preview Pull Requests
+# File: .github/workflows/preview-pages.yml
+# Purpose: Builds your PWA on every pull request and deploys a temporary GitHub Pages preview.
+
+name: PR Preview (GitHub Pages)
 
 on:
-  pull_request:
-    # Build and deploy a fresh preview for every PR update so reviewers can test changes before merging.
+  # Run this when a PR targets your main branch (base branch)
+  # Using pull_request_target means it runs with main's permissions,
+  # which satisfies environment protection rules.
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-  pull-requests: write
+  contents: read           # read repo files
+  pages: write             # allows pushing to GitHub Pages
+  id-token: write          # used by GitHub to authenticate to Pages
+  pull-requests: write     # allows posting a comment with the preview URL
 
 concurrency:
-  # Ensure only the latest commit for a PR keeps running so outdated previews are cancelled automatically.
-  group: 'preview-${{ github.event.pull_request.number }}'
+  # ensures that if you update a PR, the old preview job cancels
+  group: pages-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  preview:
-    name: Build and deploy preview
-    # Skip forked pull requests because the workflow needs elevated permissions to publish previews.
-    if: github.event.pull_request.head.repo.fork == false
+  build:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    environment:
-      # Attach the deployment to the built-in github-pages environment so the preview link appears in the PR UI.
-      name: github-pages
-      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
 
     steps:
-      - name: Checkout pull request
-        # Pull the PR head commit so the preview reflects the exact changes under review.
+      # ✅ Step 1: Check out the PR’s actual code (not main)
+      - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Configure Pages
-        # Prepare the workflow to upload the static PWA bundle.
-        uses: actions/configure-pages@v5
+      # ✅ Step 2: Set up Node.js so npm/yarn works
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: npm
 
-      - name: Upload static site
-        # Publish everything in the repository root as the Pages artifact.
+      # ✅ Step 3: Install dependencies and build your app
+      - name: Install & build
+        run: |
+          npm ci          # installs dependencies exactly as in package-lock.json
+          npm run build   # creates your production build
+
+      # ✅ Step 4: Upload the build output so the deploy job can use it
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./
+          path: ./dist    # change this if your build folder is different (e.g. build/)
 
-      - name: Deploy preview
-        id: preview
-        # Deploy an ephemeral preview following the guidance from https://github.com/marketplace/actions/preview-pages.
-        uses: actions/preview-pages@v1
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages   # connects this to your Pages environment
+    steps:
+      # ✅ Step 5: Configure GitHub Pages deployment
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
-      - name: Share preview link on the pull request
-        # Comment the preview URL (and instructions) so it is easy to open from a phone.
+      # ✅ Step 6: Deploy the uploaded build as a preview
+      - name: Deploy Preview
+        id: deploy
+        uses: actions/deploy-pages@v4
+        with:
+          preview: true    # tells GitHub to treat this as a PR preview (not production)
+
+      # ✅ Step 7: Comment the preview URL back on the PR
+      - name: Comment preview link
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core');
-            const previewUrl = '${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}';
-            const marker = '<!-- preview-pages-bot -->';
-
-            if (!previewUrl) {
-              core.setFailed('The preview-pages action did not return a preview URL.');
-              return;
-            }
-
-            const lines = [
-              marker,
-              `🚀 A preview of this pull request is ready: ${previewUrl}`,
-              '',
-              '**How to view**',
-              '• Tap the link above from your phone, or',
-              '• Open the "Deployments" panel on this pull request and choose **View deployment**.',
-              '',
-              'This preview rebuilds automatically whenever you push new commits to this PR.',
-            ];
-            const body = lines.join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-
-            const existing = comments.find((comment) => comment.body?.includes(marker) && comment.user?.type === 'Bot');
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
+            const url = '${{ steps.deploy.outputs.preview_url }}'
+            if (url) {
+              github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body,
-              });
+                body: `🚀 Preview available here: ${url}`
+              })
             }
