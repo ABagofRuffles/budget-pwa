@@ -1,75 +1,61 @@
-# File: .github/workflows/preview-pages.yml
-# Purpose: Builds your PWA on every pull request and deploys a temporary GitHub Pages preview.
-
+# .github/workflows/preview-pages.yml
 name: PR Preview (GitHub Pages)
 
 on:
-  # Run this when a PR targets your main branch (base branch)
-  # Using pull_request_target means it runs with main's permissions,
-  # which satisfies environment protection rules.
+  # Must be on the base branch to trigger; runs with main's env/permissions
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read           # read repo files
-  pages: write             # allows pushing to GitHub Pages
-  id-token: write          # used by GitHub to authenticate to Pages
-  pull-requests: write     # allows posting a comment with the preview URL
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: write
 
 concurrency:
-  # ensures that if you update a PR, the old preview job cancels
   group: pages-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   build:
+    # skip forks (security); fine since you're the only contributor
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-
     steps:
-      # ✅ Step 1: Check out the PR’s actual code (not main)
       - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # ✅ Step 2: Set up Node.js so npm/yarn works
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
           cache: npm
 
-      # ✅ Step 3: Install dependencies and build your app
       - name: Install & build
         run: |
-          npm ci          # installs dependencies exactly as in package-lock.json
-          npm run build   # creates your production build
+          npm ci
+          npm run build
 
-      # ✅ Step 4: Upload the build output so the deploy job can use it
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist    # change this if your build folder is different (e.g. build/)
+          path: ./dist   # change if your build output isn't 'dist'
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: github-pages   # connects this to your Pages environment
+      name: github-pages
     steps:
-      # ✅ Step 5: Configure GitHub Pages deployment
       - name: Configure Pages
         uses: actions/configure-pages@v5
-
-      # ✅ Step 6: Deploy the uploaded build as a preview
       - name: Deploy Preview
         id: deploy
         uses: actions/deploy-pages@v4
         with:
-          preview: true    # tells GitHub to treat this as a PR preview (not production)
-
-      # ✅ Step 7: Comment the preview URL back on the PR
+          preview: true
       - name: Comment preview link
         uses: actions/github-script@v7
         with:
@@ -80,6 +66,6 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `🚀 Preview available here: ${url}`
+                body: `🚀 Preview: ${url}`
               })
             }
