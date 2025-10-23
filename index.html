@@ -656,7 +656,7 @@
     filterTypeEl.addEventListener('change', render);
     document.addEventListener('DOMContentLoaded', () => { render(); renderWorksheet(); });
 
-    // Export CSV 
+    // Export CSV
     exportBtn.addEventListener('click', ()=>{
       const rows = [['Date','Type','Description','Category','Amount']];
       txns.forEach(t=> rows.push([t.date, t.type, t.desc, t.cat, t.amount]));
