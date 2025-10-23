@@ -1,104 +1,88 @@
 name: PR Preview (GitHub Pages)
 
 on:
-  # Run this workflow when a pull request targets main.
-  # 'pull_request_target' runs in the context of the main branch, which allows
-  # deployments to environments restricted to main.
+  # Run from the base branch context so it satisfies the
+  # github-pages environment restriction to "main".
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
-  contents: read           # Allow reading repo files
-  pages: write             # Needed to publish to GitHub Pages
-  id-token: write          # Enables secure OIDC authentication
-  pull-requests: write     # Allows posting a preview comment on PRs
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: write
 
 concurrency:
-  # Ensures only one preview deployment per PR at a time.
-  # Older runs for the same PR are automatically canceled.
+  # One preview per PR; cancel older runs when new commits arrive.
   group: pages-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   build:
+    # Only run for PRs from this repo (skip forks).
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Check out the pull request branch
+      # 1) Check out the PR's code at the exact commit.
       - name: Checkout PR HEAD
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      # 2️⃣ Setup Node.js (no caching)
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      # 3️⃣ Install dependencies and build the project
-      #     The repo is already in the correct directory
-      - name: Install & build
-        env:
-          CI: true
-        run: |
-          npm install --no-audit --no-fund
-          npm run build
-
-      # 4️⃣ Upload the built site for deployment
+      # 2) Upload the static site files as the Pages artifact.
+      #    Your index.html is at the repo root, so publish ".".
+      #    (If you later move to a 'dist' or 'build' folder, change this path.)
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist  # change if your output is in ./build or another directory
+          path: ./
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-
     steps:
-      # 5️⃣ Configure GitHub Pages
+      # 3) Configure Pages.
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      # 6️⃣ Deploy the preview site for the PR
+      # 4) Deploy a PR preview (temporary link) and expose its URL.
       - name: Deploy Preview
         id: deploy
         uses: actions/deploy-pages@v4
         with:
           preview: true
 
-      # 7️⃣ Comment or update the PR with the live preview link
+      # 5) Post or update a friendly comment with the preview URL.
       - name: Comment preview link
         uses: actions/github-script@v7
         with:
           script: |
             const url = '${{ steps.deploy.outputs.preview_url }}'
-            if (url) {
-              const { data: comments } = await github.rest.issues.listComments({
+            if (!url) return
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            })
+
+            const body = `**✨ Live Preview Ready!**\n\n🔗 [View Preview Site](${url})`
+            const existing = comments.find(c => c.body && c.body.includes('✨ Live Preview Ready!'))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-              });
-
-              const existing = comments.find(c => c.body && c.body.includes('✨ Live Preview Ready!'));
-              const body = `**✨ Live Preview Ready!**\n\n🔗 [View Preview Site](${url})`;
-
-              if (existing) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: existing.id,
-                  body,
-                });
-              } else {
-                await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  body,
-                });
-              }
+                body,
+              })
             }
