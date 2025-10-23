@@ -9,114 +9,413 @@
   <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <style>
-    :root { font-family: -apple-system, system-ui, sans-serif; }
-    * { box-sizing: border-box; }
-    body { margin: 0 auto; padding: 16px; max-width:600px; }
-    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-    h1 { font-size: 20px; margin: 0; }
-    .card { border: 1px solid #eee; border-radius:12px; padding:12px; margin-bottom:12px; }
-    label { display:block; font-size:14px; margin:8px 0 4px; }
-    input, select, button { width:100%; padding:10px; font-size:16px; border-radius:10px; border:1px solid #ddd; }
-    button { border:0; }
-    .btn { background:#0f766e; color:white; }
-    .ghost { background:#f1f5f9; }
-    .row { display:flex; flex-wrap:wrap; gap:8px; }
-    .row > * { flex:1 1 200px; min-width:0; }
-    .totals { display:flex; gap:8px; }
-    .pill { flex:1; background:#f8fafc; border:1px solid #eef; border-radius:12px; padding:8px; text-align:center; }
-    ul { list-style:none; padding:0; margin:0; }
-    li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #eee; align-items:center; }
-    .neg { color:#b91c1c; }
-    .pos { color:#0369a1; }
-    small { color:#64748b; }
-    h2 { font-size:16px; margin:0 0 8px; }
-    h3 { font-size:14px; margin:8px 0 4px; }
-    .subtotal, .section-total { text-align:right; font-weight:bold; margin-top:4px; }
-    @media (max-width: 600px) {
-      .row { flex-direction:column; }
-      body { padding:12px; }
+    :root {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      -webkit-text-size-adjust: 100%;
+      line-height: 1.45;
+      color: #0f172a;
+      --space-2xs: 2px;
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --border-light: #e2e8f0;
+      --border-mid: #cbd5e1;
+      --surface-card: #ffffff;
+      --surface-muted: #f8fafc;
+      --surface-pill: #f1f5f9;
+      --accent: #0f766e;
     }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--surface-muted);
+      color: inherit;
+      overflow-x: hidden;
+    }
+
+    .app-shell {
+      width: min(100%, 620px);
+      margin: 0 auto;
+      padding: clamp(16px, 4vw, 26px);
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-md);
+      margin-bottom: var(--space-xl);
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .card {
+      background: var(--surface-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .card:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .worksheet-card,
+    .worksheet-summary {
+      margin-bottom: 0;
+    }
+
+    .worksheet-card {
+      gap: var(--space-lg);
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: calc(var(--space-xs) + 2px);
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    input,
+    select,
+    button {
+      width: 100%;
+      min-height: 44px;
+      padding: calc(var(--space-xs) + 2px) var(--space-md);
+      font-size: 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-mid);
+      font-family: inherit;
+    }
+
+    input:focus-visible,
+    select:focus-visible,
+    button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    input,
+    select {
+      background: #ffffff;
+      color: inherit;
+    }
+
+    input::placeholder {
+      color: #94a3b8;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xs);
+    }
+
+    .btn {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .ghost {
+      background: var(--surface-pill);
+      color: inherit;
+      border: 1px solid var(--border-light);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: var(--space-sm);
+    }
+
+    .pill {
+      background: var(--surface-pill);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm);
+      padding: calc(var(--space-xs) + 2px) var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .pill strong {
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    header button {
+      width: auto;
+      flex-shrink: 0;
+      padding-inline: var(--space-lg);
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2xs);
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-sm);
+      padding: calc(var(--space-xs) + 2px) 0;
+      border-bottom: 1px dashed var(--border-light);
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    li > div:last-child {
+      text-align: right;
+    }
+
+    li:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    li strong {
+      display: inline-block;
+      min-width: 80px;
+    }
+
+    .neg { color: #b91c1c; }
+    .pos { color: #0369a1; }
+
+    small { color: #64748b; }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 700;
+      margin: 0;
+      color: #1e293b;
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0;
+      color: #475569;
+    }
+
+    .subtotal,
+    .section-total {
+      text-align: right;
+      font-weight: 600;
+      margin-top: var(--space-sm);
+      color: #334155;
+    }
+
+    #worksheet {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+    }
+
+    .category-block {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .category-block + .category-block {
+      padding-top: var(--space-md);
+      margin-top: var(--space-md);
+      border-top: 1px solid var(--border-light);
+    }
+
+    .simple-block {
+      padding-top: 0;
+      margin-top: 0;
+      border-top: none;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover,
+    a:focus-visible {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-bottom: var(--space-lg);
+      }
+
+      header button {
+        width: 100%;
+        align-self: stretch;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+      }
+    }
+
     @media (prefers-color-scheme: dark) {
-      body { background:#0f172a; color:#f8fafc; }
-      .card { background:#1e293b; border-color:#334155; }
-      .ghost { background:#1e293b; color:#f8fafc; }
-      input, select, button { background:#334155; color:#f8fafc; border:1px solid #475569; }
-      .pill { background:#334155; border-color:#475569; }
-      li { border-bottom-color:#334155; }
-      .neg { color:#f87171; }
-      .pos { color:#38bdf8; }
-      small { color:#94a3b8; }
+      :root {
+        color: #f8fafc;
+        --border-light: #334155;
+        --border-mid: #475569;
+        --surface-card: #1e293b;
+        --surface-muted: #0f172a;
+        --surface-pill: #1e293b;
+      }
+
+      input,
+      select {
+        background: #0f172a;
+        color: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      label {
+        color: #cbd5f5;
+      }
+
+      h2 { color: inherit; }
+      h3 { color: #cbd5f5; }
+
+      li {
+        border-bottom-color: var(--border-light);
+      }
+
+      .category-block + .category-block {
+        border-top-color: var(--border-light);
+      }
+
+      small { color: #94a3b8; }
+
+      .subtotal,
+      .section-total {
+        color: #cbd5f5;
+      }
+
+      .neg { color: #f87171; }
+      .pos { color: #38bdf8; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>QuickBudget</h1>
-    <button id="exportBtn" class="ghost">Export CSV</button>
-  </header>
+  <main class="app-shell">
+    <header>
+      <h1>QuickBudget</h1>
+      <button id="exportBtn" class="ghost">Export CSV</button>
+    </header>
 
-  <div class="card">
-    <div class="totals">
-      <div class="pill">
-        <div><small>Income</small></div>
-        <strong id="incomeTotal">$0.00</strong>
-      </div>
-      <div class="pill">
-        <div><small>Expenses</small></div>
-        <strong id="expenseTotal">$0.00</strong>
-      </div>
-      <div class="pill">
-        <div><small>Net</small></div>
-        <strong id="netTotal">$0.00</strong>
-      </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <label>Description</label>
-    <input id="desc" placeholder="e.g., Groceries, Paycheck" autocomplete="off" />
-
-    <div class="row">
-      <div>
-        <label>Amount</label>
-        <input id="amt" type="number" step="0.01" inputmode="decimal" placeholder="e.g., 45.67" />
-      </div>
-      <div>
-        <label>Type</label>
-        <select id="type">
-          <option value="expense">Expense (-)</option>
-          <option value="income">Income (+)</option>
-        </select>
+    <div class="card totals-card">
+      <div class="totals">
+        <div class="pill">
+          <div><small>Income</small></div>
+          <strong id="incomeTotal">$0.00</strong>
+        </div>
+        <div class="pill">
+          <div><small>Expenses</small></div>
+          <strong id="expenseTotal">$0.00</strong>
+        </div>
+        <div class="pill">
+          <div><small>Net</small></div>
+          <strong id="netTotal">$0.00</strong>
+        </div>
       </div>
     </div>
 
-    <div class="row">
-      <div>
-        <label>Category</label>
-        <input id="cat" placeholder="e.g., Food, Rent, Gas" />
+    <div class="card entry-card">
+      <div class="field">
+        <label for="desc">Description</label>
+        <input id="desc" placeholder="e.g., Groceries, Paycheck" autocomplete="off" />
       </div>
-      <div>
-        <label>Date</label>
-        <input id="date" type="date" />
+
+      <div class="row">
+        <div class="field">
+          <label for="amt">Amount</label>
+          <input id="amt" type="number" step="0.01" inputmode="decimal" placeholder="e.g., 45.67" />
+        </div>
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type">
+            <option value="expense">Expense (-)</option>
+            <option value="income">Income (+)</option>
+          </select>
+        </div>
       </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="cat">Category</label>
+          <input id="cat" placeholder="e.g., Food, Rent, Gas" />
+        </div>
+        <div class="field">
+          <label for="date">Date</label>
+          <input id="date" type="date" />
+        </div>
+      </div>
+
+      <button id="addBtn" class="btn">Add</button>
     </div>
 
-    <button id="addBtn" class="btn" style="margin-top:10px;">Add</button>
-  </div>
-
-  <div class="card">
-    <div class="row" style="margin-bottom:8px;">
-      <input id="search" placeholder="Search description/category" />
-      <select id="filterType">
-        <option value="all">All</option>
-        <option value="income">Income</option>
-        <option value="expense">Expense</option>
-      </select>
+    <div class="card filters-card">
+      <div class="row">
+        <div class="field">
+          <label for="search">Search</label>
+          <input id="search" placeholder="Description or category" />
+        </div>
+        <div class="field">
+          <label for="filterType">Type</label>
+          <select id="filterType">
+            <option value="all">All</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+        </div>
+      </div>
+      <ul id="list"></ul>
     </div>
-    <ul id="list"></ul>
-  </div>
 
-  <div id="worksheet"></div>
+    <div id="worksheet"></div>
+  </main>
 
   <script>
     // --- Storage helpers (local only) ---
@@ -178,62 +477,65 @@
       localStorage.setItem(WS_KEY, JSON.stringify(wsData));
     }
 
+    function createWorksheetField(container, labelText, key){
+      const field = document.createElement('div');
+      field.className = 'field';
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      const inputId = `ws-${key}`;
+      label.textContent = labelText;
+      label.htmlFor = inputId;
+      input.type = 'number';
+      input.step = '0.01';
+      input.inputMode = 'decimal';
+      input.id = inputId;
+      if(wsData[key] !== undefined) input.value = wsData[key];
+      input.addEventListener('input', ()=>{
+        wsData[key] = parseFloat(input.value)||0;
+        saveWorksheet();
+        updateWorksheetTotals();
+      });
+      field.appendChild(label);
+      field.appendChild(input);
+      container.appendChild(field);
+    }
+
     function renderWorksheet(){
       worksheetEl.innerHTML = '';
       WORKSHEET.forEach((section, si)=>{
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = 'card worksheet-card';
         const h2 = document.createElement('h2');
         h2.textContent = section.title;
         card.appendChild(h2);
 
         if(section.items){
+          const simpleBlock = document.createElement('div');
+          simpleBlock.className = 'category-block simple-block';
           section.items.forEach((item, ii)=>{
-            const label = document.createElement('label');
-            label.textContent = item;
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.step = '0.01';
-            input.inputMode = 'decimal';
             const key = `${si}-0-${ii}`;
-            if(wsData[key] !== undefined) input.value = wsData[key];
-            input.addEventListener('input', ()=>{
-              wsData[key] = parseFloat(input.value)||0;
-              saveWorksheet();
-              updateWorksheetTotals();
-            });
-            card.appendChild(label);
-            card.appendChild(input);
+            createWorksheetField(simpleBlock, item, key);
           });
+          card.appendChild(simpleBlock);
         }
 
         if(section.categories){
           section.categories.forEach((cat, ci)=>{
+            const block = document.createElement('div');
+            block.className = 'category-block';
             const h3 = document.createElement('h3');
             h3.textContent = cat.name;
-            card.appendChild(h3);
+            block.appendChild(h3);
             cat.items.forEach((item, ii)=>{
-              const label = document.createElement('label');
-              label.textContent = item;
-              const input = document.createElement('input');
-              input.type = 'number';
-              input.step = '0.01';
-              input.inputMode = 'decimal';
               const key = `${si}-${ci}-${ii}`;
-              if(wsData[key] !== undefined) input.value = wsData[key];
-              input.addEventListener('input', ()=>{
-                wsData[key] = parseFloat(input.value)||0;
-                saveWorksheet();
-                updateWorksheetTotals();
-              });
-              card.appendChild(label);
-              card.appendChild(input);
+              createWorksheetField(block, item, key);
             });
             const ctotal = document.createElement('div');
             ctotal.className = 'subtotal';
             ctotal.id = `cat-${si}-${ci}-total`;
             ctotal.textContent = 'Subtotal: $0.00';
-            card.appendChild(ctotal);
+            block.appendChild(ctotal);
+            card.appendChild(block);
           });
         }
 
@@ -247,7 +549,7 @@
       });
 
       const summary = document.createElement('div');
-      summary.className = 'card';
+      summary.className = 'card worksheet-summary';
       summary.innerHTML = `
         <h2>Summary</h2>
         <div class="totals">
