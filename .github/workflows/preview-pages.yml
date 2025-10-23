@@ -19,10 +19,12 @@ concurrency:
 jobs:
   preview:
     name: Build and publish preview
+    # Skip forked pull requests because they only receive read-only tokens that cannot deploy previews.
+    if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
     environment:
-      # The preview uses the GitHub Pages environment so the URL is shown in the PR UI.
-      name: github-pages
+      # Use a dedicated preview environment so protected production branches keep their restrictions.
+      name: preview-pages
       url: ${{ steps.preview.outputs.preview_url }}
 
     steps:
@@ -51,8 +53,13 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const body = `🚀 A preview of this pull request is ready: ${{ steps.preview.outputs.preview_url }}\n\n` +
-              `Open the link above to view the progressive web app. The preview is rebuilt automatically whenever you push new commits to this PR.`;
+            const body = `🚀 A preview of this pull request is ready: ${{ steps.preview.outputs.preview_url }}
+
+            **How to view**
+            • Tap the link above from your phone, or
+            • Open the "Deployments" panel on this pull request and choose **View deployment**.
+
+            This preview updates automatically whenever you push new commits to this PR.`;
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
