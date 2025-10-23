@@ -1,8 +1,8 @@
 name: Preview Pull Requests
 
 on:
-  pull_request_target:
-    # Run from the default branch context so the protected github-pages environment accepts the deployment.
+  pull_request:
+    # Build and deploy a fresh preview for every PR update so reviewers can test changes before merging.
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -12,55 +12,45 @@ permissions:
   pull-requests: write
 
 concurrency:
-  # Ensure only one preview build runs per pull request so updates replace older previews.
+  # Ensure only the latest commit for a PR keeps running so outdated previews are cancelled automatically.
   group: 'preview-${{ github.event.pull_request.number }}'
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build static site
-    # Skip forked pull requests to avoid running untrusted code with elevated permissions.
+  preview:
+    name: Build and deploy preview
+    # Skip forked pull requests because the workflow needs elevated permissions to publish previews.
     if: github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-latest
+    environment:
+      # Attach the deployment to the built-in github-pages environment so the preview link appears in the PR UI.
+      name: github-pages
+      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
 
     steps:
-      - name: Checkout repository
-        # Use the pull request head so the preview matches the code under review.
+      - name: Checkout pull request
+        # Pull the PR head commit so the preview reflects the exact changes under review.
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure Pages
-        # Prepares the workflow to upload a static site artifact for GitHub Pages.
+        # Prepare the workflow to upload the static PWA bundle.
         uses: actions/configure-pages@v5
 
       - name: Upload static site
-        # Upload the root of the repository because this project is a static PWA.
+        # Publish everything in the repository root as the Pages artifact.
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./
 
-  deploy:
-    name: Publish preview
-    needs: build
-    if: github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-latest
-    environment:
-      # The Deploy Pages action always publishes to the built-in github-pages environment.
-      name: github-pages
-      url: ${{ steps.preview.outputs.preview_url || steps.preview.outputs.page_url }}
-
-    steps:
       - name: Deploy preview
         id: preview
-        # Publish an ephemeral preview using the official Deploy Pages action in preview mode (free for public repos).
-        uses: actions/deploy-pages@v4
-        with:
-          # Setting preview to true tells Deploy Pages to create an ephemeral pull request preview instead of publishing to production.
-          preview: true
+        # Deploy an ephemeral preview following the guidance from https://github.com/marketplace/actions/preview-pages.
+        uses: actions/preview-pages@v1
 
       - name: Share preview link on the pull request
-        # Comment the preview URL so it is easy to open from a phone or any device.
+        # Comment the preview URL (and instructions) so it is easy to open from a phone.
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -70,7 +60,7 @@ jobs:
             const marker = '<!-- preview-pages-bot -->';
 
             if (!previewUrl) {
-              core.setFailed('The Deploy Pages action did not return a preview URL.');
+              core.setFailed('The preview-pages action did not return a preview URL.');
               return;
             }
 
@@ -82,7 +72,7 @@ jobs:
               '• Tap the link above from your phone, or',
               '• Open the "Deployments" panel on this pull request and choose **View deployment**.',
               '',
-              'This preview updates automatically whenever you push new commits to this PR.',
+              'This preview rebuilds automatically whenever you push new commits to this PR.',
             ];
             const body = lines.join('\n');
 
