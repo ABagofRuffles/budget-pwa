@@ -2,8 +2,10 @@
   "name": "QuickBudget",
   "short_name": "Budget",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0f766e",
-  "icons": []
+  "icons": [],
+  "description": "A budget tracking PWA that stores all data locally in your browser."
 }
