@@ -1,0 +1,888 @@
+/* ============================================================================
+   CSS CUSTOM PROPERTIES (VARIABLES)
+   ============================================================================ */
+/* Root-level CSS variables for consistent theming and spacing */
+:root {
+  /* Typography */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  line-height: 1.45;
+  color: #0f172a;
+  
+  /* Spacing scale (used for margins, padding, gaps) */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  
+  /* Border radius values */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  
+  /* Color palette (light mode) */
+  --border-light: #e2e8f0;      /* Light borders and dividers */
+  --border-mid: #cbd5e1;         /* Medium borders for inputs */
+  --surface-card: #ffffff;       /* Card backgrounds */
+  --surface-muted: #f8fafc;      /* Page background */
+  --surface-pill: #f1f5f9;       /* Pill/button backgrounds */
+  --accent: #0f766e;              /* Primary accent color (teal) */
+}
+
+/* ============================================================================
+   GLOBAL RESET AND BASE STYLES
+   ============================================================================ */
+/* Use border-box sizing for all elements (includes padding/border in width) */
+* { box-sizing: border-box; }
+
+/* Base body styles */
+body {
+  margin: 0;
+  background: var(--surface-muted);
+  color: inherit;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+/* ============================================================================
+   LAYOUT STRUCTURE
+   ============================================================================ */
+/* Main application container - centered with max width */
+.app-shell {
+  width: min(100%, 620px); /* Max width 620px, responsive to viewport */
+  margin: 0 auto; /* Center horizontally */
+  padding: clamp(16px, 4vw, 26px); /* Responsive padding (min 16px, max 26px) */
+  padding-top: calc(clamp(16px, 4vw, 26px) + 80px); /* Add space for fixed header */
+}
+
+/* Fixed header at top of page */
+header {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%); /* Center horizontally */
+  width: min(100%, 620px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-md);
+  padding: clamp(16px, 4vw, 26px);
+  background: var(--surface-muted);
+  z-index: 100; /* Above other content */
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 0;
+}
+
+/* ============================================================================
+   HEADER COMPONENTS
+   ============================================================================ */
+/* Container for menu toggle and title */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* Container for header action buttons (Import/Export) */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Hamburger menu toggle button (transforms to X when active) */
+.menu-toggle {
+  width: 44px;
+  height: 44px;
+  min-height: 44px; /* Minimum touch target size for accessibility */
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-pill);
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+/* Hamburger icon lines (3 horizontal bars) */
+.menu-toggle span {
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+/* Transform hamburger to X icon when menu is open */
+.menu-toggle.active span:nth-child(1) {
+  transform: rotate(45deg) translate(6px, 6px); /* Top bar rotates and moves */
+}
+
+.menu-toggle.active span:nth-child(2) {
+  opacity: 0; /* Middle bar fades out */
+}
+
+.menu-toggle.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(6px, -6px); /* Bottom bar rotates and moves */
+}
+
+/* ============================================================================
+   SIDE MENU
+   ============================================================================ */
+/* Slide-out side navigation menu (hidden off-screen by default) */
+.side-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: min(280px, 85vw); /* Max 280px, but 85% of viewport on small screens */
+  height: 100vh;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border-light);
+  transform: translateX(-100%); /* Hidden off-screen to the left */
+  transition: transform 0.3s ease;
+  z-index: 1000; /* Above overlay */
+  padding: var(--space-xl);
+  overflow-y: auto; /* Scrollable if content overflows */
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Show menu when open class is added */
+.side-menu.open {
+  transform: translateX(0); /* Slide into view */
+}
+
+/* Dark overlay behind menu when open */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden; /* Hidden by default */
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  z-index: 999; /* Below menu, above content */
+}
+
+/* Show overlay when menu is open */
+.menu-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ============================================================================
+   MENU CONTENT
+   ============================================================================ */
+/* Menu header with title and close button */
+.menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.menu-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* Container for all menu navigation items */
+.menu-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Individual menu item (clickable) */
+.menu-item {
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.menu-item:hover {
+  background: var(--surface-pill);
+}
+
+/* Danger/destructive menu item (e.g., Clear Data) */
+.menu-item-danger {
+  color: #dc2626; /* Red color for destructive action */
+  border-top: 1px solid var(--border-light);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-md);
+}
+
+.menu-item-danger:hover {
+  background: #fef2f2; /* Light red background on hover */
+  color: #991b1b; /* Darker red on hover */
+}
+
+/* Expandable menu sections (for worksheet navigation) */
+.menu-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header for expandable section (e.g., "Monthly Household Income") */
+.menu-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.menu-section-header:hover {
+  background: var(--surface-pill);
+}
+
+/* Arrow indicator (rotates when expanded) */
+.menu-section-header::after {
+  content: '▶';
+  font-size: 10px;
+  transition: transform 0.2s ease;
+  color: #64748b;
+}
+
+.menu-section-header.expanded::after {
+  transform: rotate(90deg); /* Point down when expanded */
+}
+
+/* Collapsible subsection container */
+.menu-subsection {
+  display: flex;
+  flex-direction: column;
+  max-height: 0; /* Collapsed by default */
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.menu-subsection.expanded {
+  max-height: 2000px; /* Expand to show content */
+}
+
+/* Nested menu categories (e.g., "Housing", "Utilities") */
+.menu-category {
+  padding-left: var(--space-lg); /* Indent from section */
+}
+
+/* Category header (also expandable) */
+.menu-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.menu-category-header:hover {
+  background: var(--surface-pill);
+}
+
+.menu-category-header::after {
+  content: '▶';
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.menu-category-header.expanded::after {
+  transform: rotate(90deg);
+}
+
+/* Individual items within categories (e.g., "Mortgage or rent") */
+.menu-item-nested {
+  padding: var(--space-xs) var(--space-md) var(--space-xs) calc(var(--space-lg) * 2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.menu-item-nested:hover {
+  background: var(--surface-pill);
+}
+
+/* ============================================================================
+   PDF UPLOAD AREA
+   ============================================================================ */
+/* Drag-and-drop area for PDF file uploads */
+.pdf-upload-area {
+  border: 2px dashed var(--border-mid);
+  border-radius: var(--radius-md);
+  padding: var(--space-xl);
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--surface-muted);
+}
+
+/* Highlight when hovering or dragging file over */
+.pdf-upload-area:hover,
+.pdf-upload-area.dragover {
+  border-color: var(--accent);
+  background: var(--surface-pill);
+}
+
+/* Hide the default file input (we use custom styling) */
+.pdf-upload-area input[type="file"] {
+  display: none;
+}
+
+/* PDF icon emoji */
+.pdf-upload-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-md);
+  opacity: 0.6;
+}
+
+/* Main upload text */
+.pdf-upload-text {
+  font-size: 14px;
+  color: #64748b;
+  margin-bottom: var(--space-xs);
+}
+
+/* Hint text below main text */
+.pdf-upload-hint {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* Container for list of extracted transactions from PDF */
+.extracted-transactions {
+  margin-top: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 400px;
+  overflow-y: auto; /* Scrollable if many transactions */
+}
+
+/* Individual extracted transaction item */
+.extracted-transaction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--surface-pill);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+/* Checkbox for selecting transactions */
+.extracted-transaction input[type="checkbox"] {
+  width: auto;
+  min-height: auto;
+  margin: 0;
+}
+
+/* Transaction details (description, category, date) */
+.extracted-transaction-details {
+  flex: 1; /* Takes remaining space */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-size: 13px;
+}
+
+/* Transaction amount display */
+.extracted-transaction-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums; /* Monospaced numbers for alignment */
+}
+
+/* Action buttons container (Edit button) */
+.extracted-transaction-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.extracted-transaction-actions button {
+  width: auto;
+  min-height: auto;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 12px;
+}
+
+/* ============================================================================
+   TABS
+   ============================================================================ */
+/* Container for tab navigation and content */
+.tabs-container {
+  margin-top: var(--space-md);
+}
+
+/* Tab navigation bar */
+.tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 2px solid var(--border-light);
+  margin-bottom: 0;
+  overflow-x: auto; /* Horizontal scroll on small screens */
+}
+
+/* Individual tab button */
+.tab {
+  padding: var(--space-md) var(--space-lg);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap; /* Prevent text wrapping */
+  transition: all 0.2s ease;
+  margin-bottom: -2px; /* Overlap border */
+  min-height: auto;
+  width: auto;
+}
+
+.tab:hover {
+  color: var(--accent);
+  background: var(--surface-pill);
+}
+
+/* Active tab styling */
+.tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent); /* Colored underline */
+}
+
+/* Tab content panels (hidden by default) */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Sub-tabs for worksheet sections (e.g., Income, Essential Expenses) */
+.sub-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: var(--space-lg);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.sub-tab {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  margin-bottom: -2px;
+  min-height: auto;
+  width: auto;
+}
+
+.sub-tab:hover {
+  color: var(--accent);
+  background: var(--surface-pill);
+}
+
+.sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* Worksheet section content (hidden by default, shown when sub-tab is active) */
+.worksheet-section {
+  display: none;
+}
+
+.worksheet-section.active {
+  display: block;
+}
+
+/* ============================================================================
+   TYPOGRAPHY
+   ============================================================================ */
+h1 {
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================================
+   CARD COMPONENT
+   ============================================================================ */
+/* Reusable card container for content sections */
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.card:last-of-type {
+  margin-bottom: 0; /* Remove bottom margin from last card */
+}
+
+/* Worksheet-specific card overrides */
+.worksheet-card,
+.worksheet-summary {
+  margin-bottom: 0;
+}
+
+.worksheet-card {
+  gap: var(--space-lg);
+}
+
+/* ============================================================================
+   FORM ELEMENTS
+   ============================================================================ */
+/* Form field container (label + input) */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-xs) + 2px);
+}
+
+/* Form labels */
+label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Base styles for all form inputs and buttons */
+input,
+select,
+button {
+  width: 100%;
+  min-height: 44px; /* Minimum touch target size for mobile accessibility */
+  padding: calc(var(--space-xs) + 2px) var(--space-md);
+  font-size: 16px; /* Prevents iOS zoom on focus */
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-mid);
+  font-family: inherit;
+}
+
+/* Focus styles for keyboard navigation */
+input:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Input and select specific styles */
+input,
+select {
+  background: #ffffff;
+  color: inherit;
+}
+
+/* Placeholder text color */
+input::placeholder {
+  color: #94a3b8;
+}
+
+/* Button base styles */
+button {
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+}
+
+/* ============================================================================
+   BUTTON VARIANTS
+   ============================================================================ */
+/* Primary button (accent color) */
+.btn {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* Secondary/ghost button (subtle background) */
+.ghost {
+  background: var(--surface-pill);
+  color: inherit;
+  border: 1px solid var(--border-light);
+}
+
+/* ============================================================================
+   LAYOUT UTILITIES
+   ============================================================================ */
+/* Responsive grid row (auto-fits columns, minimum 150px each) */
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* Grid for totals display (minimum 140px per column) */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-sm);
+}
+
+/* Pill component for displaying totals (e.g., Income, Expenses) */
+.pill {
+  background: var(--surface-pill);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: calc(var(--space-xs) + 2px) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.pill strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums; /* Monospaced numbers for alignment */
+}
+
+/* Header buttons override (don't need full width) */
+header button {
+  width: auto;
+  flex-shrink: 0;
+  padding-inline: var(--space-lg);
+}
+
+/* ============================================================================
+   TRANSACTION LIST
+   ============================================================================ */
+/* Transaction list container */
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+/* Individual transaction item */
+li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: calc(var(--space-xs) + 2px) 0;
+  border-bottom: 1px dashed var(--border-light);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* Right-aligned content (amount, delete link) */
+li > div:last-child {
+  text-align: right;
+}
+
+li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+li strong {
+  display: inline-block;
+  min-width: 80px;
+}
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+/* Color classes for positive/negative amounts */
+.neg { color: #b91c1c; } /* Red for expenses */
+.pos { color: #0369a1; } /* Blue for income */
+
+small { color: #64748b; }
+
+/* Heading styles */
+h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: #1e293b;
+}
+
+h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: #475569;
+}
+
+/* ============================================================================
+   WORKSHEET STYLES
+   ============================================================================ */
+/* Subtotal and section total displays */
+.subtotal,
+.section-total {
+  text-align: right;
+  font-weight: 600;
+  margin-top: var(--space-sm);
+  color: #334155;
+}
+
+/* Main worksheet container */
+#worksheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+/* Category block (group of related budget items) */
+.category-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Separator between category blocks */
+.category-block + .category-block {
+  padding-top: var(--space-md);
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--border-light);
+}
+
+/* Simple block (no category grouping, e.g., income items) */
+.simple-block {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+/* ============================================================================
+   LINKS
+   ============================================================================ */
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN
+   ============================================================================ */
+/* Mobile styles (screens 600px and below) */
+@media (max-width: 600px) {
+  /* Full-width header on mobile */
+  header {
+    left: 0;
+    transform: none; /* Remove centering transform */
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  /* Header buttons don't need full width */
+  header button:not(.menu-toggle) {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  /* Single column layout for form rows on mobile */
+  .row {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+}
+
+/* ============================================================================
+   DARK MODE
+   ============================================================================ */
+/* Dark mode styles (when user's system preference is dark) */
+@media (prefers-color-scheme: dark) {
+  /* Override CSS variables for dark theme */
+  :root {
+    color: #f8fafc; /* Light text color */
+    --border-light: #334155; /* Darker borders */
+    --border-mid: #475569;
+    --surface-card: #1e293b; /* Dark card background */
+    --surface-muted: #0f172a; /* Dark page background */
+    --surface-pill: #1e293b; /* Dark pill background */
+  }
+
+  /* Dark backgrounds for form inputs */
+  input,
+  select {
+    background: #0f172a;
+    color: inherit;
+  }
+
+  button {
+    color: inherit;
+  }
+
+  label {
+    color: #cbd5f5;
+  }
+
+  h2 { color: inherit; }
+  h3 { color: #cbd5f5; }
+
+  /* Dark mode border colors */
+  li {
+    border-bottom-color: var(--border-light);
+  }
+
+  .category-block + .category-block {
+    border-top-color: var(--border-light);
+  }
+
+  small { color: #94a3b8; }
+
+  .subtotal,
+  .section-total {
+    color: #cbd5f5;
+  }
+
+  /* Adjusted colors for dark mode */
+  .neg { color: #f87171; } /* Lighter red */
+  .pos { color: #38bdf8; } /* Lighter blue */
+
+  .menu-category-header,
+  .menu-item-nested {
+    color: #94a3b8;
+  }
+
+  .menu-category-header::after {
+    color: #64748b;
+  }
+
+  .tabs {
+    border-bottom-color: var(--border-light);
+  }
+
+  .sub-tabs {
+    border-bottom-color: var(--border-light);
+  }
+}
+
