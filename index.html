@@ -51,8 +51,7 @@
     <!-- Menu navigation items -->
     <nav class="menu-content" id="menuContent">
       <div class="menu-item" id="menuTransactions">Transactions</div>
-      <div class="menu-item" id="menuPdfUpload">Import PDF</div>
-      <div class="menu-item" id="menuCsvImport">Import CSV</div>
+      <div class="menu-item" id="menuImport">Import</div>
       <!-- Worksheet sections are dynamically populated by JavaScript -->
       <div class="menu-section" id="menuWorksheetSection"></div>
       <div class="menu-item" id="menuExport">Export CSV</div>
@@ -73,8 +72,6 @@
         <h1>QuickBudget</h1>
       </div>
       <div class="header-actions">
-        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" />
-        <button id="importBtn" class="ghost" style="margin-right: var(--space-sm);">Import CSV</button>
         <button id="exportBtn" class="ghost">Export CSV</button>
       </div>
     </header>
@@ -134,15 +131,15 @@
 
     <!-- PDF upload card for importing bank statements -->
     <div class="card pdf-upload-card">
-      <h2>Import from PDF</h2>
+      <h2>Import from PDF or CSV</h2>
       <p style="font-size: 13px; color: #64748b; margin-bottom: var(--space-lg);">
-        Upload a bank statement or receipt PDF to automatically extract transactions
+        Upload a bank statement PDF to extract transactions or import a CSV export from another app
       </p>
       <!-- Drag and drop area for PDF files -->
       <div class="pdf-upload-area" id="pdfUploadArea">
-        <input type="file" id="pdfFileInput" accept=".pdf" />
+        <input type="file" id="importFileInput" accept=".pdf,.csv" />
         <div class="pdf-upload-icon">📄</div>
-        <div class="pdf-upload-text">Drag and drop a PDF here</div>
+        <div class="pdf-upload-text">Drag and drop a PDF or CSV here</div>
         <div class="pdf-upload-hint">or click to browse</div>
       </div>
       <!-- Status message for PDF processing -->
