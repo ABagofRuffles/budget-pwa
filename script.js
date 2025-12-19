@@ -89,8 +89,7 @@ const incomeTotalEl = document.getElementById('incomeTotal');
 const expenseTotalEl = document.getElementById('expenseTotal');
 const netTotalEl = document.getElementById('netTotal');
 const exportBtn = document.getElementById('exportBtn');
-const importBtn = document.getElementById('importBtn');
-const csvFileInput = document.getElementById('csvFileInput');
+const importFileInput = document.getElementById('importFileInput');
 const worksheetEl = document.getElementById('worksheet');
 
 // Menu elements
@@ -99,15 +98,14 @@ const sideMenu = document.getElementById('sideMenu');
 const menuOverlay = document.getElementById('menuOverlay');
 const closeMenuBtn = document.getElementById('closeMenuBtn');
 const menuTransactions = document.getElementById('menuTransactions');
-const menuPdfUpload = document.getElementById('menuPdfUpload');
-const menuCsvImport = document.getElementById('menuCsvImport');
+const menuImport = document.getElementById('menuImport');
 const menuWorksheetSection = document.getElementById('menuWorksheetSection');
 const menuExport = document.getElementById('menuExport');
 const menuClearData = document.getElementById('menuClearData');
 
 // PDF upload elements
 const pdfUploadArea = document.getElementById('pdfUploadArea');
-const pdfFileInput = document.getElementById('pdfFileInput');
+const pdfFileInput = document.getElementById('importFileInput');
 const pdfStatus = document.getElementById('pdfStatus');
 const extractedTransactions = document.getElementById('extractedTransactions');
 const pdfActions = document.getElementById('pdfActions');
@@ -843,95 +841,6 @@ function parseCSVLine(line) {
   return fields;
 }
 
-/**
- * Import transactions from CSV file
- */
-importBtn.addEventListener('click', () => {
-  csvFileInput.click();
-});
-
-csvFileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) {
-    console.log('[Import] No file selected');
-    return;
-  }
-  
-  console.log('[Import] CSV file selected:', file.name, 'size:', file.size, 'bytes');
-  
-  // Validate file type
-  if (!file.name.toLowerCase().endsWith('.csv')) {
-    console.warn('[Import] Invalid file type:', file.name);
-    alert('Please select a CSV file.');
-    csvFileInput.value = '';
-    return;
-  }
-  
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    try {
-      const csvText = event.target.result;
-      const importedTxns = parseCSV(csvText);
-      
-      if (importedTxns.length === 0) {
-        console.warn('[Import] No valid transactions found in CSV');
-        alert('No valid transactions found in CSV file.');
-        csvFileInput.value = '';
-        return;
-      }
-      
-      // Limit number of transactions that can be imported at once (prevent DoS)
-      const MAX_IMPORT_LIMIT = 10000;
-      if (importedTxns.length > MAX_IMPORT_LIMIT) {
-        console.warn('[Import] Too many transactions:', importedTxns.length);
-        alert(`Too many transactions in CSV file (${importedTxns.length}). Maximum allowed is ${MAX_IMPORT_LIMIT}. Please split your CSV file into smaller files.`);
-        csvFileInput.value = '';
-        return;
-      }
-      
-      // Ask user if they want to replace or merge
-      const action = confirm(
-        `Found ${importedTxns.length} transaction(s) in CSV.\n\n` +
-        `Click OK to ADD these transactions to your existing data.\n` +
-        `Click Cancel to REPLACE all transactions with CSV data.`
-      );
-      
-      if (action) {
-        // Merge: Add imported transactions to existing ones
-        txns = [...txns, ...importedTxns];
-        save(txns);
-        render();
-        alert(`Successfully imported ${importedTxns.length} transaction(s).`);
-      } else {
-        // Replace: Use only imported transactions
-        txns = importedTxns;
-        save(txns);
-        render();
-        alert(`Successfully replaced all transactions with ${importedTxns.length} transaction(s) from CSV.`);
-      }
-      
-      csvFileInput.value = '';
-    } catch (error) {
-      alert(`Error importing CSV: ${error.message}`);
-      console.error('[Import] CSV import error:', error);
-      csvFileInput.value = '';
-    }
-  };
-  
-  reader.onerror = () => {
-    alert('Error reading CSV file.');
-    csvFileInput.value = '';
-  };
-  
-  reader.readAsText(file);
-});
-
-// Menu item for CSV import
-menuCsvImport.addEventListener('click', () => {
-  closeMenu();
-  importBtn.click(); // Trigger file input
-});
-
 // ============================================================================
 // MENU RENDERING
 // ============================================================================
@@ -1120,11 +1029,14 @@ menuTransactions.addEventListener('click', () => {
   }
 });
 
-menuPdfUpload.addEventListener('click', () => {
+menuImport.addEventListener('click', () => {
   closeMenu();
   const pdfCard = document.querySelector('.pdf-upload-card');
   if (pdfCard) {
     pdfCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  if (pdfFileInput) {
+    pdfFileInput.click();
   }
 });
 
@@ -1211,6 +1123,19 @@ function isPdfFile(file) {
   if (file.name) {
     const fileName = file.name.toLowerCase();
     return fileName.endsWith('.pdf');
+  }
+  return false;
+}
+
+// Helper to check if a file is a CSV (by MIME type or extension)
+function isCsvFile(file) {
+  if (!file) return false;
+  if (file.type === 'text/csv' || file.type === 'application/vnd.ms-excel') {
+    return true;
+  }
+  if (file.name) {
+    const fileName = file.name.toLowerCase();
+    return fileName.endsWith('.csv');
   }
   return false;
 }
@@ -1388,6 +1313,149 @@ if (document.readyState === 'loading') {
   }
 })();
 
+/**
+ * Read a file as text via FileReader
+ * @param {File} file
+ * @returns {Promise<string>}
+ */
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => resolve(event.target.result);
+    reader.onerror = () => reject(new Error('Error reading file.'));
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * Handle CSV file upload and merge/replace transactions
+ * @param {File} file - CSV file to process
+ */
+async function handleCsvFile(file) {
+  console.log('handleCsvFile called with:', file ? file.name : 'null');
+  if (!file) {
+    console.error('No file provided to handleCsvFile');
+    return;
+  }
+
+  if (!isCsvFile(file)) {
+    console.warn('File validation failed - not a CSV:', file.name, file.type);
+    if (pdfStatus) {
+      pdfStatus.textContent = 'Invalid file type. Please select a CSV file.';
+      pdfStatus.style.color = '#b91c1c';
+    }
+    if (importFileInput) importFileInput.value = '';
+    return;
+  }
+
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  if (file.size > MAX_FILE_SIZE) {
+    console.warn('CSV file too large:', file.size, 'bytes');
+    if (pdfStatus) {
+      pdfStatus.textContent = 'File too large. Maximum size is 5MB.';
+      pdfStatus.style.color = '#b91c1c';
+    }
+    if (importFileInput) importFileInput.value = '';
+    return;
+  }
+
+  if (pdfStatus) {
+    pdfStatus.textContent = 'Processing CSV...';
+    pdfStatus.style.color = '#64748b';
+  }
+
+  try {
+    const csvText = await readFileAsText(file);
+    const importedTxns = parseCSV(csvText);
+
+    if (importedTxns.length === 0) {
+      console.warn('[Import] No valid transactions found in CSV');
+      if (pdfStatus) {
+        pdfStatus.textContent = 'No valid transactions found in CSV file.';
+        pdfStatus.style.color = '#b91c1c';
+      }
+      if (importFileInput) importFileInput.value = '';
+      return;
+    }
+
+    const MAX_IMPORT_LIMIT = 10000;
+    if (importedTxns.length > MAX_IMPORT_LIMIT) {
+      console.warn('[Import] Too many transactions:', importedTxns.length);
+      alert(`Too many transactions in CSV file (${importedTxns.length}). Maximum allowed is ${MAX_IMPORT_LIMIT}. Please split your CSV file into smaller files.`);
+      if (pdfStatus) {
+        pdfStatus.textContent = 'Import canceled - file has too many rows.';
+        pdfStatus.style.color = '#b91c1c';
+      }
+      if (importFileInput) importFileInput.value = '';
+      return;
+    }
+
+    const action = confirm(
+      `Found ${importedTxns.length} transaction(s) in CSV.\n\n` +
+      `Click OK to ADD these transactions to your existing data.\n` +
+      `Click Cancel to REPLACE all transactions with CSV data.`
+    );
+
+    if (action) {
+      txns = [...txns, ...importedTxns];
+      save(txns);
+      render();
+      if (pdfStatus) {
+        pdfStatus.textContent = `Added ${importedTxns.length} transaction(s) from CSV.`;
+        pdfStatus.style.color = '#0369a1';
+      }
+    } else {
+      txns = importedTxns;
+      save(txns);
+      render();
+      if (pdfStatus) {
+        pdfStatus.textContent = `Replaced all transactions with ${importedTxns.length} from CSV.`;
+        pdfStatus.style.color = '#0369a1';
+      }
+    }
+  } catch (error) {
+    alert(`Error importing CSV: ${error.message}`);
+    console.error('[Import] CSV import error:', error);
+    if (pdfStatus) {
+      pdfStatus.textContent = `Error importing CSV: ${error.message}`;
+      pdfStatus.style.color = '#b91c1c';
+    }
+  } finally {
+    if (importFileInput) importFileInput.value = '';
+  }
+}
+
+/**
+ * Route file imports to the correct handler
+ * @param {File} file
+ */
+function handleImportFile(file) {
+  if (!file) {
+    if (pdfStatus) {
+      pdfStatus.textContent = 'No file selected.';
+      pdfStatus.style.color = '#b91c1c';
+    }
+    return;
+  }
+
+  if (isPdfFile(file)) {
+    handlePdfFile(file);
+    return;
+  }
+
+  if (isCsvFile(file)) {
+    handleCsvFile(file);
+    return;
+  }
+
+  console.warn('Unsupported file type selected:', file.name, file.type);
+  if (pdfStatus) {
+    pdfStatus.textContent = 'Unsupported file type. Please choose a PDF or CSV.';
+    pdfStatus.style.color = '#b91c1c';
+  }
+  if (importFileInput) importFileInput.value = '';
+}
+
 // Drag and drop handlers for PDF upload (only if elements exist)
 if (pdfUploadArea && pdfFileInput) {
   pdfUploadArea.addEventListener('click', () => pdfFileInput.click());
@@ -1408,16 +1476,7 @@ if (pdfUploadArea && pdfFileInput) {
     if (files.length > 0) {
       const file = files[0];
       console.log('Dropped file:', file.name, file.type, file.size);
-      if (isPdfFile(file)) {
-        console.log('Dropped file is a PDF, calling handlePdfFile');
-        handlePdfFile(file);
-      } else {
-        console.warn('Dropped file is not a PDF:', file.name, file.type);
-        if (pdfStatus) {
-          pdfStatus.textContent = 'Please select a PDF file.';
-          pdfStatus.style.color = '#b91c1c';
-        }
-      }
+      handleImportFile(file);
     }
   });
   
@@ -1426,17 +1485,7 @@ if (pdfUploadArea && pdfFileInput) {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       console.log('Selected file:', file.name, file.type, file.size);
-      if (isPdfFile(file)) {
-        console.log('File is a PDF, calling handlePdfFile');
-        handlePdfFile(file);
-      } else {
-        console.warn('File is not a PDF:', file.name, file.type);
-        if (pdfStatus) {
-          pdfStatus.textContent = 'Please select a PDF file.';
-          pdfStatus.style.color = '#b91c1c';
-        }
-        pdfFileInput.value = ''; // Clear invalid selection
-      }
+      handleImportFile(file);
     } else {
       console.warn('No files selected');
     }
