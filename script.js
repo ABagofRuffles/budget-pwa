@@ -2061,63 +2061,43 @@ clearPdfBtn.addEventListener('click', () => {
 // PWA: register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-      console.log('[PWA] Registering service worker');
-      // Unregister any existing service workers first (to clear old cached versions)
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        console.log('[PWA] Found', registrations.length, 'existing service worker registration(s)');
-        registrations.forEach(registration => {
-          registration.unregister().then(() => {
-            console.log('[PWA] Old service worker unregistered');
-          });
-        });
+    console.log('[PWA] Registering service worker');
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(registration => {
+        console.log('[PWA] Service Worker registered successfully, scope:', registration.scope);
         
-        // Clear all caches to ensure fresh files
-        caches.keys().then(cacheNames => {
-          console.log('[PWA] Found', cacheNames.length, 'cache(s) to clear');
-          return Promise.all(
-            cacheNames.map(cacheName => {
-              console.log('[PWA] Deleting cache:', cacheName);
-              return caches.delete(cacheName);
-            })
-          );
-        }).then(() => {
-          console.log('[PWA] All caches cleared');
-          
-          // Wait a moment, then register new service worker
-          setTimeout(() => {
-            navigator.serviceWorker.register('./service-worker.js')
-              .then(registration => {
-                console.log('[PWA] Service Worker registered successfully, scope:', registration.scope);
-                
-                // Force immediate activation
-                if (registration.waiting) {
-                  console.log('[PWA] Service worker waiting, sending skip waiting message');
-                  registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                }
-                
-                // Check for updates periodically
-                registration.addEventListener('updatefound', () => {
-                  console.log('[PWA] Service Worker update found');
-                  const newWorker = registration.installing;
-                  if (newWorker) {
-                    newWorker.addEventListener('statechange', () => {
-                      console.log('[PWA] Service worker state changed:', newWorker.state);
-                      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        // New service worker available, reload to activate
-                        console.log('[PWA] New service worker installed, reloading page...');
-                        window.location.reload();
-                      }
-                    });
-                  }
-                });
-              })
-              .catch(error => {
-                console.error('[PWA] Service Worker registration failed:', error);
-                // Don't show error to user as app works without service worker
-              });
-          }, 100);
+        // Check for updates without clearing caches to preserve offline assets
+        if (registration.update) {
+          registration.update().catch(error => {
+            console.warn('[PWA] Service worker update check failed:', error);
+          });
+        }
+        
+        // Force immediate activation
+        if (registration.waiting) {
+          console.log('[PWA] Service worker waiting, sending skip waiting message');
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        
+        // Listen for updates to refresh when a new worker takes over
+        registration.addEventListener('updatefound', () => {
+          console.log('[PWA] Service Worker update found');
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              console.log('[PWA] Service worker state changed:', newWorker.state);
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // New service worker available, reload to activate
+                console.log('[PWA] New service worker installed, reloading page...');
+                window.location.reload();
+              }
+            });
+          }
         });
+      })
+      .catch(error => {
+        console.error('[PWA] Service Worker registration failed:', error);
+        // Don't show error to user as app works without service worker
       });
   });
 }
-
