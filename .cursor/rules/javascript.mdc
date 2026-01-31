@@ -1,0 +1,25 @@
+---
+description: JavaScript conventions for script.js and service-worker.js
+globs: **/*.js
+alwaysApply: false
+---
+
+# JavaScript Conventions
+
+## Validation
+- **Transactions**: validate with `validateTransactionSchema(txn)` before save/display. Required: `id` (string, 1–100 chars), `desc` (1–200), `amount` (number, 0–999999999.99), `type` ('income'|'expense'). Optional: `cat` (string ≤100), `date` (YYYY-MM-DD via `validateDate`).
+- **Dates**: use `validateDate(dateStr)`; return normalized YYYY-MM-DD or null. Reject invalid dates (e.g. Feb 30).
+- **Numbers**: use `validateNumber(value, max)` for worksheet and user input; return number or null.
+
+## DOM and XSS
+- Never set `innerHTML` or use `document.write` with user or stored data.
+- Use `document.createElement`, `element.textContent`, `element.appendChild` for dynamic content (e.g. transaction list, extracted PDF rows).
+
+## Storage
+- **Load**: `load()` returns array of transactions; filter with `validateTransactionSchema` and return `[]` on parse error.
+- **Save**: `save(data)`; handle `QuotaExceededError` with user-facing message.
+- Worksheet: `wsData` object keyed by `"sectionIndex-categoryIndex-itemIndex"`; persist with `saveWorksheet()`.
+
+## New features
+- When adding new localStorage keys, use a versioned key (e.g. `qb_*_v1`) and document in project-overview rule.
+- For file handling (PDF/CSV): validate file type (MIME + extension), enforce max size, and validate parsed data before merging into `txns`.

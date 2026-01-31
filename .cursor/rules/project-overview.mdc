@@ -1,0 +1,29 @@
+---
+description: QuickBudget PWA — stack, conventions, and security
+alwaysApply: true
+---
+
+# QuickBudget PWA — Project Overview
+
+## Stack
+- **Vanilla JS** (no framework): `script.js` is the main app; no build step.
+- **HTML** (`index.html`), **CSS** (`styles.css`), **PWA**: `manifest.json`, `service-worker.js`.
+- Data: **localStorage** only (transactions key `qb_txns_v1`, worksheet key `qb_ws_v1`).
+
+## Conventions
+- Use **section comments** in code: `// ============ SECTION NAME ============`.
+- Prefer **JSDoc** for non-trivial functions (params, returns, purpose).
+- **Console logging**: use prefixes like `[App]`, `[Storage]`, `[PWA]`, `[Data]` for clarity.
+- **IDs**: use existing DOM IDs from `index.html`; do not invent new ones without adding the element in HTML.
+
+## Security (must preserve)
+- **No innerHTML / document.write** for user data — use `textContent`, `createElement`, safe DOM APIs to avoid XSS.
+- **Validate all inputs**: transaction schema (`validateTransactionSchema`), dates (`validateDate`), numbers (`validateNumber`).
+- **CSV export**: sanitize fields that start with `=`, `+`, `-`, `@`, `\t` (prefix with tab) to prevent formula injection.
+- **CSP** in `index.html` must stay strict; only `script-src` allows `https://cdn.jsdelivr.net` for PDF.js.
+- External scripts (e.g. PDF.js worker): verify integrity (e.g. SRI / hash check) before use.
+
+## File boundaries
+- **script.js**: app logic, storage, UI, PDF/CSV import; keep service worker registration here.
+- **service-worker.js**: cache names (`qb-cache-v*`), install/activate/fetch; update `CACHE` version when assets change.
+- **styles.css**: use `:root` variables (`--space-*`, `--accent`, `--surface-*`); support `prefers-color-scheme: dark`.

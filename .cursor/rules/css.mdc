@@ -1,0 +1,27 @@
+---
+description: CSS structure and theming for styles.css
+globs: **/*.css
+alwaysApply: false
+---
+
+# CSS Conventions
+
+## Variables (`:root`)
+- **Spacing**: `--space-2xs` through `--space-xl`; use these instead of raw px for margins/padding/gaps.
+- **Surfaces**: `--surface-card`, `--surface-muted`, `--surface-pill`; **borders**: `--border-light`, `--border-mid`.
+- **Accent**: `--accent` (#0f766e) for primary actions and active states.
+- **Radius**: `--radius-sm`, `--radius-md` for consistency.
+
+## Structure
+- Use section comments: `/* ============ SECTION NAME ============ */`.
+- Prefer class-based styling; avoid inline styles except where already used (e.g. PDF upload card hint).
+- **Cards**: `.card` for containers; keep `.worksheet-card`, `.worksheet-summary` variants.
+
+## Responsive and a11y
+- **Touch targets**: inputs/buttons `min-height: 44px`; keep for new controls.
+- **Focus**: use `:focus-visible` with `outline` and `outline-offset` for keyboard users.
+- **Dark mode**: override variables and key selectors in `@media (prefers-color-scheme: dark)`; do not remove dark mode support.
+
+## Layout
+- `.app-shell`: `width: min(100%, 620px)`, centered; padding uses `clamp(16px, 4vw, 26px)`.
+- `.row`: `grid-template-columns: repeat(auto-fit, minmax(150px, 1fr))`; mobile can switch to single column.

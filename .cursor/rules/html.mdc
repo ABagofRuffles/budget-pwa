@@ -1,0 +1,24 @@
+---
+description: HTML and PWA markup conventions
+globs: **/*.html
+alwaysApply: false
+---
+
+# HTML Conventions
+
+## Markup
+- Keep `lang="en"` on `<html>`.
+- Use semantic elements: `<main>`, `<header>`, `<nav>`, `<aside>` as in current layout.
+- Form inputs: associate `<label for="id">` with corresponding `id` on inputs.
+
+## PWA and meta
+- **Manifest**: `manifest.json` is linked; do not remove theme-color or manifest link.
+- **CSP**: `<meta http-equiv="Content-Security-Policy">` must remain; only allow `script-src 'self' https://cdn.jsdelivr.net` for PDF.js. Do not add `'unsafe-inline'` or `'unsafe-eval'` for scripts.
+- Keep **Referrer-Policy**, **Permissions-Policy**, **X-Content-Type-Options** meta tags.
+
+## Accessibility
+- Buttons that only show an icon (e.g. menu toggle): include `aria-label` ("Open menu" / "Close menu").
+- Do not remove or change existing `aria-label` values.
+
+## Scripts
+- **PDF.js**: script tag must use `integrity` and `crossorigin="anonymous"`; if CDN or version changes, update SRI hash and worker hash in `script.js` to match.
