@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareMonths, compareRecentWeeks, localISODate, normalizeImportedDate, normalizeTransaction, parseCSV, parseOFX, resolveStatementDate, selectNewestState, summarizeMonth, toCents } from '../core.js';
+import { compareMonths, compareRecentWeeks, localISODate, normalizeImportedDate, normalizeTransaction, parseCSV, parseOFX, resolveStatementDate, selectNewestState, summarizeMonth, toCents, transactionFingerprint } from '../core.js';
 
 test('money is stored in integer cents', () => {
   assert.equal(toCents('12.34'), 1234);
@@ -24,10 +24,11 @@ test('monthly summary excludes transfers from income and spending', () => {
 });
 
 test('CSV import supports quoted commas', () => {
-  const result = parseCSV('Date,Type,Description,Category,Amount\n2026-09-01,expense,"Market, Inc",Groceries,42.15');
+  const result = parseCSV('Date,Type,Description,Category,Amount,Note\n2026-09-01,expense,"Market, Inc",Groceries,42.15,"Weekly shop"');
   assert.equal(result.length, 1);
   assert.equal(result[0].description, 'Market, Inc');
   assert.equal(result[0].amountCents, 4215);
+  assert.equal(result[0].note, 'Weekly shop');
 });
 
 test('CSV import rejects impossible and missing dates', () => {
@@ -46,6 +47,16 @@ test('OFX import reads posted transactions', () => {
 test('OFX import classifies XFER records as transfers', () => {
   const result = parseOFX('<STMTTRN><TRNTYPE>XFER<DTPOSTED>20260905120000<TRNAMT>-500.00<FITID>xfer-1<NAME>MOVE TO SAVINGS</STMTTRN>');
   assert.equal(result[0].type, 'transfer');
+});
+
+test('OFX FITIDs keep identical legitimate charges distinct while matching reimports', () => {
+  const result = parseOFX([
+    '<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260905120000<TRNAMT>-8.00<FITID>coffee-1<NAME>CAFE</STMTTRN>',
+    '<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260905130000<TRNAMT>-8.00<FITID>coffee-2<NAME>CAFE</STMTTRN>'
+  ].join(''));
+  assert.equal(result.length, 2);
+  assert.notEqual(transactionFingerprint(result[0]), transactionFingerprint(result[1]));
+  assert.equal(transactionFingerprint(result[0]), transactionFingerprint({ ...result[0], id: 'different-local-id' }));
 });
 
 test('statement dates use the statement period, including across New Year', () => {

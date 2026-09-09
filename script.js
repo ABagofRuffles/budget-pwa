@@ -80,8 +80,8 @@ async function readStoredState() {
   });
 }
 
-async function writeStoredState() {
-  state.updatedAt = new Date().toISOString();
+async function writeStoredState({ touchUpdatedAt = true } = {}) {
+  if (touchUpdatedAt) state.updatedAt = new Date().toISOString();
   if (storageMode === 'local') {
     localStorage.setItem(FALLBACK_STATE_KEY, JSON.stringify(state));
     return;
@@ -104,20 +104,40 @@ function readFallbackState() {
   }
 }
 
+function writeFallbackSnapshot() {
+  state.updatedAt = new Date().toISOString();
+  localStorage.setItem(FALLBACK_STATE_KEY, JSON.stringify(state));
+}
+
 function queueSave() {
   window.clearTimeout(saveTimer);
+  try {
+    // Make every confirmed mutation durable synchronously. IndexedDB remains the
+    // primary store, while this snapshot covers navigation before its async write.
+    writeFallbackSnapshot();
+  } catch (error) {
+    console.warn('[Storage] Immediate backup snapshot failed', error);
+  }
+  if (storageMode === 'local') return;
   saveTimer = window.setTimeout(() => {
-    writeStoredState().catch(async error => {
-      console.warn('[Storage] IndexedDB save failed; switching to localStorage', error);
-      storageMode = 'local';
-      try {
-        await writeStoredState();
-        showToast('Saved locally using backup browser storage.');
-      } catch (fallbackError) {
-        console.error('[Storage] Could not save data', fallbackError);
-        showToast('Your latest change could not be saved.');
-      }
-    });
+    const persistedUpdatedAt = state.updatedAt;
+    writeStoredState({ touchUpdatedAt: false })
+      .then(() => {
+        if (readFallbackState()?.updatedAt === persistedUpdatedAt) {
+          localStorage.removeItem(FALLBACK_STATE_KEY);
+        }
+      })
+      .catch(async error => {
+        console.warn('[Storage] IndexedDB save failed; switching to localStorage', error);
+        storageMode = 'local';
+        try {
+          await writeStoredState();
+          showToast('Saved locally using backup browser storage.');
+        } catch (fallbackError) {
+          console.error('[Storage] Could not save data', fallbackError);
+          showToast('Your latest change could not be saved.');
+        }
+      });
   }, 120);
 }
 
@@ -775,17 +795,26 @@ function populateCategoryOptions() {
   });
 }
 
+function registerServiceWorker() {
+  navigator.serviceWorker.register('./service-worker.js')
+    .catch(error => console.warn('[PWA] Service worker unavailable', error));
+}
+
+function scheduleServiceWorkerRegistration() {
+  if (!('serviceWorker' in navigator)) return;
+  if (document.readyState === 'complete') registerServiceWorker();
+  else window.addEventListener('load', registerServiceWorker, { once: true });
+}
+
 async function initialize() {
   populateCategoryOptions();
   bindEvents();
+  scheduleServiceWorkerRegistration();
   await loadState();
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
   renderAll();
   const target = location.hash.slice(1);
   showView(['overview', 'transactions', 'plan', 'import'].includes(target) ? target : 'overview', false);
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(error => console.warn('[PWA] Service worker unavailable', error)));
-  }
 }
 
 initialize();

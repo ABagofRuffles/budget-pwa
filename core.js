@@ -91,6 +91,7 @@ export function normalizeTransaction(transaction) {
   if (!description || !cents || cents > 99999999999) return null;
   return {
     id: String(transaction.id || crypto.randomUUID()),
+    ...(transaction.sourceId ? { sourceId: String(transaction.sourceId).trim().slice(0, 160) } : {}),
     description,
     amountCents: cents,
     type,
@@ -125,6 +126,7 @@ export function inferCategory(description, type = 'expense') {
 }
 
 export function transactionFingerprint(transaction) {
+  if (transaction.sourceId) return `source|${transaction.sourceId}`;
   return [
     transaction.date,
     transaction.type,
@@ -238,7 +240,8 @@ export function parseCSV(text) {
       amount: Math.abs(amount),
       type: inferredType.includes('income') || inferredType.includes('credit') ? 'income' : inferredType.includes('transfer') ? 'transfer' : 'expense',
       category: record.category,
-      date
+      date,
+      note: record.note
     });
   }).filter(Boolean);
 }
@@ -298,8 +301,10 @@ export function parseOFX(text) {
       ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`
       : null;
     if (!isValidDate(date)) return null;
+    const sourceId = get('FITID');
     return normalizeTransaction({
-      id: get('FITID') || crypto.randomUUID(),
+      id: sourceId || crypto.randomUUID(),
+      sourceId,
       description: get('NAME') || get('MEMO'),
       amount: Math.abs(amount),
       type: transactionType === 'XFER' ? 'transfer' : amount >= 0 ? 'income' : 'expense',
