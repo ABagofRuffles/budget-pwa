@@ -1,9 +1,0 @@
-{
-  "name": "quickbudget",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "test": "node --test",
-    "check": "node --check core.js && node --check script.js && node --check service-worker.js"
-  }
-}
