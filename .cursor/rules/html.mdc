@@ -4,10 +4,21 @@ globs: **/*.html
 alwaysApply: false
 ---
 
-# HTML conventions
+# HTML Conventions
 
-- Keep semantic landmarks, labeled controls, logical headings, and 44px touch targets.
-- Icon-only buttons need specific accessible names.
-- Preserve the manifest, theme metadata, strict CSP, and PDF.js SRI.
-- Keep PDF.js script and worker versions aligned.
-- Do not claim HTTP-only security headers through meta tags.
+## Markup
+- Keep `lang="en"` on `<html>`.
+- Use semantic elements: `<main>`, `<header>`, `<nav>`, `<aside>` as in current layout.
+- Form inputs: associate `<label for="id">` with corresponding `id` on inputs.
+
+## PWA and meta
+- **Manifest**: `manifest.json` is linked; do not remove theme-color or manifest link.
+- **CSP**: `<meta http-equiv="Content-Security-Policy">` must remain; only allow `script-src 'self' https://cdn.jsdelivr.net` for PDF.js. Do not add `'unsafe-inline'` or `'unsafe-eval'` for scripts.
+- Keep **Referrer-Policy**, **Permissions-Policy**, **X-Content-Type-Options** meta tags.
+
+## Accessibility
+- Buttons that only show an icon (e.g. menu toggle): include `aria-label` ("Open menu" / "Close menu").
+- Do not remove or change existing `aria-label` values.
+
+## Scripts
+- **PDF.js**: script tag must use `integrity` and `crossorigin="anonymous"`; if CDN or version changes, update SRI hash and worker hash in `script.js` to match.
