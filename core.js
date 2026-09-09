@@ -51,6 +51,14 @@ export function currentMonth(date = new Date()) {
   return localISODate(date).slice(0, 7);
 }
 
+export function selectNewestState(indexedState, fallbackState) {
+  if (!indexedState) return fallbackState || null;
+  if (!fallbackState) return indexedState;
+  const indexedTime = Date.parse(indexedState.updatedAt || '') || 0;
+  const fallbackTime = Date.parse(fallbackState.updatedAt || '') || 0;
+  return fallbackTime > indexedTime ? fallbackState : indexedState;
+}
+
 export function shiftMonth(month, offset) {
   const [year, monthNumber] = month.split('-').map(Number);
   const shifted = new Date(year, monthNumber - 1 + offset, 1);
@@ -223,12 +231,14 @@ export function parseCSV(text) {
     const rawAmount = record.amount || record.debit || record.credit;
     const amount = Number.parseFloat(String(rawAmount).replace(/[$,()]/g, '').replace(/^\s*-/, '-'));
     const inferredType = record.type?.toLowerCase() || (record.credit ? 'income' : amount < 0 ? 'expense' : 'expense');
+    const date = normalizeImportedDate(record.date);
+    if (!date) return null;
     return normalizeTransaction({
       description: record.description || record.memo || record.name || record.merchant,
       amount: Math.abs(amount),
       type: inferredType.includes('income') || inferredType.includes('credit') ? 'income' : inferredType.includes('transfer') ? 'transfer' : 'expense',
       category: record.category,
-      date: normalizeImportedDate(record.date)
+      date
     });
   }).filter(Boolean);
 }
@@ -237,9 +247,44 @@ export function normalizeImportedDate(value) {
   const clean = String(value || '').trim();
   if (isValidDate(clean)) return clean;
   const match = clean.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-  if (!match) return localISODate();
+  if (!match) return null;
   const year = match[3].length === 2 ? Number(`20${match[3]}`) : Number(match[3]);
-  return `${year}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+  const normalized = `${year}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+  return isValidDate(normalized) ? normalized : null;
+}
+
+function extractStatementPeriod(text) {
+  const numeric = String(text).match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\s*(?:through|to|[-–—])\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i);
+  if (numeric) {
+    const start = normalizeImportedDate(numeric[1]);
+    const end = normalizeImportedDate(numeric[2]);
+    if (start && end) return { start, end };
+  }
+
+  const monthNames = {
+    january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+    july: 7, august: 8, september: 9, october: 10, november: 11, december: 12
+  };
+  const written = String(text).match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})\s*(?:through|to|[-–—])\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})/i);
+  if (!written) return null;
+  const start = `${written[3]}-${String(monthNames[written[1].toLowerCase()]).padStart(2, '0')}-${written[2].padStart(2, '0')}`;
+  const end = `${written[6]}-${String(monthNames[written[4].toLowerCase()]).padStart(2, '0')}-${written[5].padStart(2, '0')}`;
+  return isValidDate(start) && isValidDate(end) ? { start, end } : null;
+}
+
+export function resolveStatementDate(value, statementText) {
+  const clean = String(value || '').trim();
+  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(clean)) return normalizeImportedDate(clean);
+  const match = clean.match(/^(\d{1,2})[/-](\d{1,2})$/);
+  if (!match) return null;
+  const period = extractStatementPeriod(statementText);
+  if (!period) return null;
+  const years = [...new Set([period.start.slice(0, 4), period.end.slice(0, 4)])];
+  const candidates = years
+    .map(year => `${year}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`)
+    .filter(isValidDate)
+    .filter(date => date >= period.start && date <= period.end);
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 export function parseOFX(text) {
@@ -247,15 +292,17 @@ export function parseOFX(text) {
   return blocks.map(block => {
     const get = tag => block.match(new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i'))?.[1]?.trim() || '';
     const amount = Number.parseFloat(get('TRNAMT'));
+    const transactionType = get('TRNTYPE').toUpperCase();
     const dateRaw = get('DTPOSTED');
     const date = /^\d{8}/.test(dateRaw)
       ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`
-      : localISODate();
+      : null;
+    if (!isValidDate(date)) return null;
     return normalizeTransaction({
       id: get('FITID') || crypto.randomUUID(),
       description: get('NAME') || get('MEMO'),
       amount: Math.abs(amount),
-      type: amount >= 0 ? 'income' : 'expense',
+      type: transactionType === 'XFER' ? 'transfer' : amount >= 0 ? 'income' : 'expense',
       date
     });
   }).filter(Boolean);

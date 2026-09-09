@@ -95,7 +95,14 @@
         </div>
         <section id="importPreviewPanel" class="ledger-panel import-preview hidden" aria-labelledby="previewTitle">
           <div class="panel-heading"><div><p class="eyebrow">REVIEW</p><h2 id="previewTitle">Ready to import</h2></div><button id="cancelImport" class="text-button">Cancel</button></div>
-          <p id="duplicateSummary" class="comparison-note"></p><div id="importPreview" class="transaction-list"></div><button id="confirmImport" class="primary-action">Add selected transactions</button>
+          <p id="duplicateSummary" class="comparison-note"></p>
+          <div id="importPreview" class="transaction-list"></div>
+          <div id="importPagination" class="import-pagination hidden" aria-label="Import preview pages">
+            <button id="importPreviousPage" class="secondary-action">← Previous</button>
+            <span id="importPageLabel" aria-live="polite">Page 1 of 1</span>
+            <button id="importNextPage" class="secondary-action">Next →</button>
+          </div>
+          <button id="confirmImport" class="primary-action">Add selected transactions</button>
         </section>
       </section>
     </main>

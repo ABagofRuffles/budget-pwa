@@ -10,10 +10,11 @@ import {
   inferCategory,
   localISODate,
   monthLabel,
-  normalizeImportedDate,
   normalizeTransaction,
   parseCSV,
   parseOFX,
+  resolveStatementDate,
+  selectNewestState,
   shiftMonth,
   summarizeMonth,
   toCents,
@@ -26,6 +27,10 @@ const STORE_NAME = 'app-state';
 const STATE_KEY = 'primary';
 const LEGACY_TRANSACTION_KEY = 'qb_txns_v1';
 const LEGACY_WORKSHEET_KEY = 'qb_ws_v1';
+const FALLBACK_STATE_KEY = 'qb_state_v2';
+const IMPORT_PAGE_SIZE = 100;
+const PDF_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+const PDF_WORKER_SHA512 = 'sha512-BbrZ76UNZq5BhH7LL7pn9A4TKQpQeNCHOo65/akfelcIBbcVvYWOFQKPXIrykE3qZxYjmDX573oa4Ywsc7rpTw==';
 
 const emptyState = () => ({
   version: 2,
@@ -33,16 +38,19 @@ const emptyState = () => ({
   budgets: {},
   settings: { currency: 'USD' },
   legacyWorksheet: null,
-  migratedAt: null
+  migratedAt: null,
+  updatedAt: null
 });
 
 let state = emptyState();
 let selectedMonth = currentMonth();
 let importCandidates = [];
+let importPage = 0;
 let lastDeleted = null;
 let toastTimer = null;
 let saveTimer = null;
 let storageMode = 'indexeddb';
+let pdfWorkerPromise = null;
 
 const elements = Object.fromEntries(
   [...document.querySelectorAll('[id]')].map(element => [element.id, element])
@@ -61,7 +69,7 @@ function openDatabase() {
 }
 
 async function readStoredState() {
-  if (storageMode === 'local') return JSON.parse(localStorage.getItem('qb_state_v2') || 'null');
+  if (storageMode === 'local') return readFallbackState();
   const database = await openDatabase();
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(STORE_NAME, 'readonly');
@@ -73,8 +81,9 @@ async function readStoredState() {
 }
 
 async function writeStoredState() {
+  state.updatedAt = new Date().toISOString();
   if (storageMode === 'local') {
-    localStorage.setItem('qb_state_v2', JSON.stringify(state));
+    localStorage.setItem(FALLBACK_STATE_KEY, JSON.stringify(state));
     return;
   }
   const database = await openDatabase();
@@ -86,12 +95,28 @@ async function writeStoredState() {
   });
 }
 
+function readFallbackState() {
+  try {
+    return JSON.parse(localStorage.getItem(FALLBACK_STATE_KEY) || 'null');
+  } catch (error) {
+    console.warn('[Storage] Ignoring an invalid localStorage fallback', error);
+    return null;
+  }
+}
+
 function queueSave() {
   window.clearTimeout(saveTimer);
   saveTimer = window.setTimeout(() => {
-    writeStoredState().catch(error => {
-      console.error('[Storage] Could not save data', error);
-      showToast('Your latest change could not be saved.');
+    writeStoredState().catch(async error => {
+      console.warn('[Storage] IndexedDB save failed; switching to localStorage', error);
+      storageMode = 'local';
+      try {
+        await writeStoredState();
+        showToast('Saved locally using backup browser storage.');
+      } catch (fallbackError) {
+        console.error('[Storage] Could not save data', fallbackError);
+        showToast('Your latest change could not be saved.');
+      }
     });
   }, 120);
 }
@@ -143,14 +168,18 @@ function validateState(candidate) {
   }
   validated.legacyWorksheet = candidate.legacyWorksheet || null;
   validated.migratedAt = candidate.migratedAt || null;
+  validated.updatedAt = candidate.updatedAt || null;
   return validated;
 }
 
 async function loadState() {
   try {
-    const stored = await readStoredState();
-    state = stored ? validateState(stored) : migrateLegacyData();
-    if (!stored) await writeStoredState();
+    const indexedState = await readStoredState();
+    const fallbackState = readFallbackState();
+    const recoveredState = selectNewestState(indexedState, fallbackState);
+    state = recoveredState ? validateState(recoveredState) : migrateLegacyData();
+    if (!indexedState || recoveredState === fallbackState) await writeStoredState();
+    if (fallbackState) localStorage.removeItem(FALLBACK_STATE_KEY);
   } catch (error) {
     console.warn('[Storage] IndexedDB unavailable, using localStorage', error);
     storageMode = 'local';
@@ -532,11 +561,33 @@ function exportTransactionsCSV() {
   showToast('Transaction CSV downloaded.');
 }
 
+async function calculateSHA512(value) {
+  const digest = await crypto.subtle.digest('SHA-512', new TextEncoder().encode(value));
+  return `sha512-${btoa(String.fromCharCode(...new Uint8Array(digest)))}`;
+}
+
+async function configureSecurePdfWorker() {
+  if (pdfWorkerPromise) return pdfWorkerPromise;
+  pdfWorkerPromise = (async () => {
+    const response = await fetch(PDF_WORKER_URL, { cache: 'no-store', credentials: 'omit' });
+    if (!response.ok) throw new Error(`PDF worker download failed (${response.status}).`);
+    const workerCode = await response.text();
+    const actualHash = await calculateSHA512(workerCode);
+    if (actualHash !== PDF_WORKER_SHA512) throw new Error('PDF worker security verification failed.');
+    return URL.createObjectURL(new Blob([workerCode], { type: 'application/javascript' }));
+  })().catch(error => {
+    pdfWorkerPromise = null;
+    throw error;
+  });
+  return pdfWorkerPromise;
+}
+
 async function parsePDF(file) {
   if (!window.pdfjsLib) throw new Error('PDF tools are unavailable. Check your connection and try again.');
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = await configureSecurePdfWorker();
   const documentData = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   const transactions = [];
+  const statementLines = [];
   for (let pageNumber = 1; pageNumber <= Math.min(documentData.numPages, 100); pageNumber += 1) {
     const page = await documentData.getPage(pageNumber);
     const content = await page.getTextContent();
@@ -547,18 +598,22 @@ async function parsePDF(file) {
       lines.get(y).push(item);
     });
     [...lines.keys()].sort((a, b) => b - a).forEach(y => {
-      const line = lines.get(y).sort((a, b) => a.transform[4] - b.transform[4]).map(item => item.str).join(' ').trim();
-      const match = line.match(/^(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?$/);
-      if (!match) return;
-      const numeric = Number.parseFloat(match[3].replace(/[$,]/g, ''));
-      const date = match[1].split(/[/-]/).length === 2
-        ? normalizeImportedDate(`${match[1]}/${selectedMonth.slice(0, 4)}`)
-        : normalizeImportedDate(match[1]);
-      const type = numeric > 0 && /deposit|payroll|payment from|interest/i.test(match[2]) ? 'income' : 'expense';
-      const transaction = normalizeTransaction({ description: match[2], amount: Math.abs(numeric), type, date });
-      if (transaction) transactions.push(transaction);
+      statementLines.push(lines.get(y).sort((a, b) => a.transform[4] - b.transform[4]).map(item => item.str).join(' ').trim());
     });
   }
+  const statementText = statementLines.join('\n');
+  let ambiguousDateCount = 0;
+  statementLines.forEach(line => {
+    const match = line.match(/^(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\s+(.+?)\s+(-?\$?[\d,]+\.\d{2})(?:\s+[\d,]+\.\d{2})?$/);
+    if (!match) return;
+    const numeric = Number.parseFloat(match[3].replace(/[$,]/g, ''));
+    const date = resolveStatementDate(match[1], statementText);
+    if (!date) { ambiguousDateCount += 1; return; }
+    const type = numeric > 0 && /deposit|payroll|payment from|interest/i.test(match[2]) ? 'income' : 'expense';
+    const transaction = normalizeTransaction({ description: match[2], amount: Math.abs(numeric), type, date });
+    if (transaction) transactions.push(transaction);
+  });
+  transactions.ambiguousDateCount = ambiguousDateCount;
   return transactions;
 }
 
@@ -601,6 +656,7 @@ function prepareImportPreview(parsed) {
   const batch = new Set();
   let duplicateCount = 0;
   importCandidates = [];
+  importPage = 0;
   parsed.forEach(transaction => {
     const fingerprint = transactionFingerprint(transaction);
     const duplicate = existing.has(fingerprint) || batch.has(fingerprint);
@@ -610,17 +666,30 @@ function prepareImportPreview(parsed) {
       importCandidates.push({ ...transaction, selected: true });
     }
   });
-  elements.importPreview.replaceChildren();
   if (!importCandidates.length) {
     elements.importPreviewPanel.classList.add('hidden');
     setImportStatus(parsed.length ? 'Every transaction in this file is already in QuickBudget.' : 'No recognizable transactions were found.', Boolean(!parsed.length));
     return;
   }
-  importCandidates.slice(0, 200).forEach(transaction => elements.importPreview.appendChild(renderTransactionRow(transaction, false, true)));
-  setText('duplicateSummary', `${importCandidates.length} new transaction${importCandidates.length === 1 ? '' : 's'} found${duplicateCount ? `; ${duplicateCount} duplicate${duplicateCount === 1 ? '' : 's'} skipped` : ''}.`);
+  renderImportPreviewPage();
+  const ambiguousSummary = parsed.ambiguousDateCount ? `; ${parsed.ambiguousDateCount} PDF row${parsed.ambiguousDateCount === 1 ? '' : 's'} skipped because the statement year was unclear` : '';
+  setText('duplicateSummary', `${importCandidates.length} new transaction${importCandidates.length === 1 ? '' : 's'} found${duplicateCount ? `; ${duplicateCount} duplicate${duplicateCount === 1 ? '' : 's'} skipped` : ''}${ambiguousSummary}.`);
   elements.importPreviewPanel.classList.remove('hidden');
   setImportStatus('Review the transactions below before adding them.');
   elements.importPreviewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderImportPreviewPage() {
+  const pageCount = Math.ceil(importCandidates.length / IMPORT_PAGE_SIZE);
+  importPage = Math.min(Math.max(importPage, 0), Math.max(pageCount - 1, 0));
+  const start = importPage * IMPORT_PAGE_SIZE;
+  elements.importPreview.replaceChildren();
+  importCandidates.slice(start, start + IMPORT_PAGE_SIZE)
+    .forEach(transaction => elements.importPreview.appendChild(renderTransactionRow(transaction, false, true)));
+  setText('importPageLabel', `Page ${importPage + 1} of ${pageCount}`);
+  elements.importPreviousPage.disabled = importPage === 0;
+  elements.importNextPage.disabled = importPage >= pageCount - 1;
+  elements.importPagination.classList.toggle('hidden', pageCount <= 1);
 }
 
 function confirmImport() {
@@ -687,6 +756,8 @@ function bindEvents() {
   elements.dropZone.addEventListener('drop', event => handleImportFile(event.dataTransfer.files[0]));
   elements.cancelImport.addEventListener('click', () => { importCandidates = []; elements.importPreviewPanel.classList.add('hidden'); setImportStatus(''); });
   elements.confirmImport.addEventListener('click', confirmImport);
+  elements.importPreviousPage.addEventListener('click', () => { importPage -= 1; renderImportPreviewPage(); });
+  elements.importNextPage.addEventListener('click', () => { importPage += 1; renderImportPreviewPage(); });
   window.addEventListener('hashchange', () => {
     const target = location.hash.slice(1);
     if (['overview', 'transactions', 'plan', 'import'].includes(target)) showView(target, false);

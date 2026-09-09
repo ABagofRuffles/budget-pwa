@@ -36,7 +36,7 @@ Use **Import & backup → Download complete backup** before clearing browser dat
 
 ## Import guidance
 
-CSV and QFX/OFX files are the most reliable import formats. PDF parsing is heuristic because statement layouts differ by bank, and PDF import requires the PDF.js CDN to be available. Every supported transaction import is reviewed before saving and exact duplicates are skipped.
+CSV and QFX/OFX files are the most reliable import formats. PDF parsing is heuristic because statement layouts differ by bank. PDF import requires the PDF.js CDN, verifies the worker against its pinned SHA-512 hash before execution, and skips rows whose year cannot be derived safely from the statement period. Every supported transaction import is reviewed before saving and exact duplicates are skipped.
 
 ## Development
 

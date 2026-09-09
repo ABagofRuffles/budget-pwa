@@ -302,6 +302,10 @@ textarea { resize: vertical; }
 .status-message.error { color: var(--danger); }
 .import-preview { margin-top: 18px; }
 .import-preview > .primary-action { margin-top: 20px; }
+.import-pagination { margin-top: 18px; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.import-pagination .secondary-action { min-height: 38px; padding: 7px 12px; }
+.import-pagination span { color: var(--muted); font-size: 13px; font-weight: 700; }
+.import-pagination button:disabled { opacity: .4; cursor: not-allowed; }
 .import-check { width: 20px; height: 20px; accent-color: var(--ink); }
 
 .transaction-dialog { width: min(570px, calc(100vw - 30px)); padding: 0; border: 1px solid var(--ink); border-radius: var(--radius); background: var(--surface); color: var(--ink); box-shadow: 0 30px 80px rgba(0,0,0,.25); }
