@@ -3,27 +3,28 @@ description: QuickBudget PWA — stack, conventions, and security
 alwaysApply: true
 ---
 
-# QuickBudget PWA — Project Overview
+# QuickBudget PWA
 
-## Stack
-- **Vanilla JS** (no framework): `script.js` is the main app; no build step.
-- **HTML** (`index.html`), **CSS** (`styles.css`), **PWA**: `manifest.json`, `service-worker.js`.
-- Data: **localStorage** only (transactions key `qb_txns_v1`, worksheet key `qb_ws_v1`).
+## Stack and data model
+- Browser-native HTML, CSS, and ES modules with no build step.
+- `core.js` contains pure calculations, validation, categorization, and import parsers.
+- `script.js` owns IndexedDB persistence and DOM behavior.
+- Money is always stored as integer cents in schema version 2.
+- IndexedDB database `quickbudget` is primary; `qb_state_v2` is the fallback.
+- Preserve migration from legacy `qb_txns_v1` and `qb_ws_v1` data.
 
-## Conventions
-- Use **section comments** in code: `// ============ SECTION NAME ============`.
-- Prefer **JSDoc** for non-trivial functions (params, returns, purpose).
-- **Console logging**: use prefixes like `[App]`, `[Storage]`, `[PWA]`, `[Data]` for clarity.
-- **IDs**: use existing DOM IDs from `index.html`; do not invent new ones without adding the element in HTML.
+## Product behavior
+- All totals are scoped to the selected calendar month.
+- Transfers never count as income or expenses.
+- Monthly plan categories and transaction categories share `CATEGORIES` from `core.js`.
+- Complete JSON backup includes transactions, plans, settings, and retained legacy worksheet data.
 
-## Security (must preserve)
-- **No innerHTML / document.write** for user data — use `textContent`, `createElement`, safe DOM APIs to avoid XSS.
-- **Validate all inputs**: transaction schema (`validateTransactionSchema`), dates (`validateDate`), numbers (`validateNumber`).
-- **CSV export**: sanitize fields that start with `=`, `+`, `-`, `@`, `\t` (prefix with tab) to prevent formula injection.
-- **CSP** in `index.html` must stay strict; only `script-src` allows `https://cdn.jsdelivr.net` for PDF.js.
-- External scripts (e.g. PDF.js worker): verify integrity (e.g. SRI / hash check) before use.
+## Security and accessibility
+- Never render user or imported data with `innerHTML` or `document.write`.
+- Keep the CSP strict and preserve PDF.js SRI when changing its CDN version.
+- CSV export must protect against formula injection.
+- Use semantic buttons, labels, dialogs, live status regions, 44px touch targets, and visible focus states.
 
-## File boundaries
-- **script.js**: app logic, storage, UI, PDF/CSV import; keep service worker registration here.
-- **service-worker.js**: cache names (`qb-cache-v*`), install/activate/fetch; update `CACHE` version when assets change.
-- **styles.css**: use `:root` variables (`--space-*`, `--accent`, `--surface-*`); support `prefers-color-scheme: dark`.
+## Verification
+- Run `npm test` for core behavior and `npm run check` for JavaScript syntax.
+- Update the service-worker cache name when a cached app-shell asset changes.

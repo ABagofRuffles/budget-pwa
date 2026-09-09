@@ -1,198 +1,122 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <!-- Basic meta tags -->
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17221f">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="A private, month-by-month budget that keeps your financial data on your device.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>QuickBudget</title>
-  
-  <!-- Content Security Policy to prevent XSS attacks -->
-  <!-- Note: 'unsafe-inline' is required for inline styles in HTML, but XSS protection is maintained through safe DOM methods in script.js -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
-  
-  <!-- Security headers to prevent clickjacking and referrer leakage -->
-  <!-- Note: X-Frame-Options must be set via HTTP headers, not meta tags -->
-  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
-  <meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()">
-  <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  
-  <!-- PWA manifest for installable app -->
   <link rel="manifest" href="manifest.json">
-  
-  <!-- Theme colors for browser UI (light and dark mode) -->
-  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
-  <meta name="color-scheme" content="light dark">
-  
-  <!-- Stylesheet and PDF.js library for PDF parsing -->
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
-  <!-- PDF.js from jsDelivr - using latest available version with SRI for security -->
-  <!-- Note: jsDelivr has limited versions. For latest PDF.js, consider using unpkg.com or self-hosting -->
-  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" 
-          integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ=="
-          crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js" integrity="sha512-q+4liFwdPC/bNdhUpZx6aXDx/h77yEQtn4I1slHydcbZK34nLaR3cAeYSJshoxIOq3mjEf7xJE8YWIUHMn+oCQ==" crossorigin="anonymous"></script>
 </head>
 <body>
-  <!-- Overlay that appears when side menu is open -->
-  <div class="menu-overlay" id="menuOverlay"></div>
-  
-  <!-- Side navigation menu (hidden by default, slides in from left) -->
-  <aside class="side-menu" id="sideMenu">
-    <!-- Menu header with close button -->
-    <div class="menu-header">
-      <h2>Menu</h2>
-      <button class="menu-toggle active" id="closeMenuBtn" aria-label="Close menu">
-        <span></span>
-        <span></span>
-        <span></span>
-      </button>
-    </div>
-    
-    <!-- Menu navigation items -->
-    <nav class="menu-content" id="menuContent">
-      <div class="menu-item" id="menuTransactions">Transactions</div>
-      <div class="menu-item" id="menuImport">Import</div>
-      <!-- Worksheet sections are dynamically populated by JavaScript -->
-      <div class="menu-section" id="menuWorksheetSection"></div>
-      <div class="menu-item" id="menuExport">Export CSV</div>
-      <div class="menu-item menu-item-danger" id="menuClearData">Clear All Data</div>
-    </nav>
-  </aside>
-  
-  <!-- Main application content -->
-  <main class="app-shell">
-    <!-- Fixed header with menu toggle and export button -->
-    <header>
-      <div class="header-left">
-        <button class="menu-toggle" id="menuToggle" aria-label="Open menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-        <h1>QuickBudget</h1>
-      </div>
-      <div class="header-actions">
-        <button id="exportBtn" class="ghost">Export CSV</button>
-      </div>
-    </header>
+  <div class="app-frame">
+    <aside class="rail" aria-label="Primary navigation">
+      <a class="brand" href="#overview" aria-label="QuickBudget home"><span class="brand-mark" aria-hidden="true">Q</span><span>Quick<br>Budget</span></a>
+      <nav class="rail-nav">
+        <button class="nav-item active" data-view="overview" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>Overview</button>
+        <button class="nav-item" data-view="transactions"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h14"/></svg>Transactions</button>
+        <button class="nav-item" data-view="plan"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19V9m5 10V5m6 14v-7m5 7V3"/></svg>Plan</button>
+        <button class="nav-item" data-view="import"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14"/></svg>Import</button>
+      </nav>
+      <div class="rail-footer"><span class="privacy-dot" aria-hidden="true"></span>Stored on this device</div>
+    </aside>
 
-    <!-- Summary totals card showing income, expenses, and net -->
-    <div class="card totals-card">
-      <div class="totals">
-        <div class="pill">
-          <div><small>Income</small></div>
-          <strong id="incomeTotal">$0.00</strong>
+    <main class="workspace">
+      <header class="topbar">
+        <div class="month-control" aria-label="Selected month">
+          <button id="previousMonth" class="icon-button" aria-label="Previous month">←</button>
+          <button id="monthLabel" class="month-label" aria-haspopup="dialog">September 2026</button>
+          <button id="nextMonth" class="icon-button" aria-label="Next month">→</button>
+          <input id="monthPicker" class="visually-hidden" type="month" aria-label="Choose month">
         </div>
-        <div class="pill">
-          <div><small>Expenses</small></div>
-          <strong id="expenseTotal">$0.00</strong>
-        </div>
-        <div class="pill">
-          <div><small>Net</small></div>
-          <strong id="netTotal">$0.00</strong>
-        </div>
-      </div>
-    </div>
+        <button id="openAddTransaction" class="primary-action"><span aria-hidden="true">＋</span> Add transaction</button>
+      </header>
 
-    <!-- Form card for adding new transactions -->
-    <div class="card entry-card">
-      <div class="field">
-        <label for="desc">Description</label>
-        <input id="desc" placeholder="e.g., Groceries, Paycheck" autocomplete="off" />
-      </div>
-
-      <div class="row">
-        <div class="field">
-          <label for="amt">Amount</label>
-          <input id="amt" type="number" step="0.01" inputmode="decimal" placeholder="e.g., 45.67" />
+      <section id="overviewView" class="view active" aria-labelledby="overviewTitle">
+        <div class="view-heading"><div><p class="eyebrow">MONTHLY POSITION</p><h1 id="overviewTitle">Your money, at a glance.</h1></div><p id="monthComparison" class="comparison-note"></p></div>
+        <section class="balance-board" aria-label="Monthly summary">
+          <div class="balance-main"><span>Available after spending</span><strong id="availableTotal">$0.00</strong><small id="availableContext">Income minus this month’s expenses</small></div>
+          <dl class="balance-metrics"><div><dt>Income</dt><dd id="incomeTotal">$0.00</dd></div><div><dt>Spent</dt><dd id="spentTotal">$0.00</dd></div><div><dt>Planned</dt><dd id="plannedTotal">$0.00</dd></div><div><dt>Budget left</dt><dd id="budgetLeftTotal">$0.00</dd></div></dl>
+        </section>
+        <div class="dashboard-grid">
+          <section class="ledger-panel spending-panel" aria-labelledby="spendingTitle">
+            <div class="panel-heading"><div><p class="eyebrow">ACTUAL VS PLAN</p><h2 id="spendingTitle">Where it went</h2></div><button class="text-button" data-go-view="plan">Edit plan →</button></div>
+            <div id="categoryOverview" class="category-overview"></div>
+          </section>
+          <section class="ledger-panel attention-panel" aria-labelledby="attentionTitle">
+            <div class="panel-heading"><div><p class="eyebrow">SIGNALS</p><h2 id="attentionTitle">Needs attention</h2></div></div>
+            <div id="attentionList" class="attention-list"></div>
+          </section>
         </div>
-        <div class="field">
-          <label for="type">Type</label>
-          <select id="type">
-            <option value="expense">Expense (-)</option>
-            <option value="income">Income (+)</option>
-          </select>
-        </div>
-      </div>
+        <section class="ledger-panel recent-panel" aria-labelledby="recentTitle">
+          <div class="panel-heading"><div><p class="eyebrow">LATEST ACTIVITY</p><h2 id="recentTitle">Recent transactions</h2></div><button class="text-button" data-go-view="transactions">See all →</button></div>
+          <div id="recentTransactions" class="transaction-list"></div>
+        </section>
+      </section>
 
-      <div class="row">
-        <div class="field">
-          <label for="cat">Category</label>
-          <input id="cat" placeholder="e.g., Food, Rent, Gas" />
+      <section id="transactionsView" class="view" aria-labelledby="transactionsTitle">
+        <div class="view-heading"><div><p class="eyebrow">MONEY IN, MONEY OUT</p><h1 id="transactionsTitle">Transactions</h1></div><p id="transactionCount" class="comparison-note"></p></div>
+        <div class="toolbar">
+          <label class="search-field"><span class="visually-hidden">Search transactions</span><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="transactionSearch" type="search" placeholder="Search transactions"></label>
+          <label><span class="visually-hidden">Filter by type</span><select id="transactionTypeFilter"><option value="all">All types</option><option value="expense">Expenses</option><option value="income">Income</option><option value="transfer">Transfers</option></select></label>
+          <label><span class="visually-hidden">Filter by category</span><select id="transactionCategoryFilter"><option value="all">All categories</option></select></label>
         </div>
-        <div class="field">
-          <label for="date">Date</label>
-          <input id="date" type="date" />
+        <section class="ledger-panel transaction-panel"><div id="allTransactions" class="transaction-list"></div></section>
+      </section>
+
+      <section id="planView" class="view" aria-labelledby="planTitle">
+        <div class="view-heading"><div><p class="eyebrow">GIVE EVERY DOLLAR A JOB</p><h1 id="planTitle">Monthly plan</h1></div><button id="copyPreviousPlan" class="secondary-action">Copy previous month</button></div>
+        <section class="plan-intro">
+          <label for="incomeTarget">Expected take-home income</label>
+          <div class="money-input large"><span>$</span><input id="incomeTarget" inputmode="decimal" autocomplete="off" value="0.00"></div>
+          <div class="plan-equation"><span><small>Planned expenses</small><strong id="planExpenseTotal">$0.00</strong></span><span class="equation-symbol">=</span><span><small>Unassigned income</small><strong id="unassignedTotal">$0.00</strong></span></div>
+        </section>
+        <div id="budgetGroups" class="budget-groups"></div>
+      </section>
+
+      <section id="importView" class="view" aria-labelledby="importTitle">
+        <div class="view-heading"><div><p class="eyebrow">BRING YOUR HISTORY</p><h1 id="importTitle">Import & backup</h1></div></div>
+        <div class="import-grid">
+          <section class="ledger-panel import-panel">
+            <div><p class="eyebrow">IMPORT</p><h2>Bank activity</h2></div><p>CSV and QFX/OFX are most reliable. PDF statements are supported as a fallback.</p>
+            <label id="dropZone" class="drop-zone" for="importFile"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 20h16"/></svg><strong>Drop a file here</strong><span>or choose CSV, QFX, OFX, PDF, or QuickBudget JSON</span><input id="importFile" type="file" accept=".csv,.qfx,.ofx,.pdf,.json"></label>
+            <p id="importStatus" class="status-message" aria-live="polite"></p>
+          </section>
+          <section class="ledger-panel backup-panel">
+            <div><p class="eyebrow">BACKUP</p><h2>Your complete data</h2></div><p>A QuickBudget backup includes transactions, every monthly plan, settings, and migrated worksheet data.</p>
+            <button id="exportBackup" class="secondary-action">Download complete backup</button><button id="exportCSV" class="text-button align-left">Export transactions as CSV →</button>
+          </section>
         </div>
-      </div>
+        <section id="importPreviewPanel" class="ledger-panel import-preview hidden" aria-labelledby="previewTitle">
+          <div class="panel-heading"><div><p class="eyebrow">REVIEW</p><h2 id="previewTitle">Ready to import</h2></div><button id="cancelImport" class="text-button">Cancel</button></div>
+          <p id="duplicateSummary" class="comparison-note"></p><div id="importPreview" class="transaction-list"></div><button id="confirmImport" class="primary-action">Add selected transactions</button>
+        </section>
+      </section>
+    </main>
+  </div>
 
-      <button id="addBtn" class="btn">Add</button>
-    </div>
+  <nav class="mobile-nav" aria-label="Primary navigation"><button class="nav-item active" data-view="overview">Overview</button><button class="nav-item" data-view="transactions">Activity</button><button class="nav-item" data-view="plan">Plan</button><button class="nav-item" data-view="import">Import</button></nav>
 
-    <!-- PDF upload card for importing bank statements -->
-    <div class="card pdf-upload-card">
-      <h2>Import from PDF or CSV</h2>
-      <p style="font-size: 13px; color: #64748b; margin-bottom: var(--space-lg);">
-        Upload a bank statement PDF to extract transactions or import a CSV export from another app
-      </p>
-      <!-- Drag and drop area for PDF files -->
-      <div class="pdf-upload-area" id="pdfUploadArea">
-        <input type="file" id="importFileInput" accept=".pdf,.csv" />
-        <div class="pdf-upload-icon">📄</div>
-        <div class="pdf-upload-text">Drag and drop a PDF or CSV here</div>
-        <div class="pdf-upload-hint">or click to browse</div>
-      </div>
-      <!-- Status message for PDF processing -->
-      <div id="pdfStatus" style="margin-top: var(--space-md); font-size: 13px; color: #64748b;"></div>
-      <!-- Container for extracted transactions (shown after PDF is processed) -->
-      <div id="extractedTransactions" class="extracted-transactions" style="display: none;"></div>
-      <!-- Action buttons for adding or clearing extracted transactions -->
-      <div id="pdfActions" style="margin-top: var(--space-md); display: none;">
-        <button id="addSelectedBtn" class="btn">Add Selected Transactions</button>
-        <button id="clearPdfBtn" class="ghost" style="margin-top: var(--space-sm);">Clear</button>
-      </div>
-    </div>
+  <dialog id="transactionDialog" class="transaction-dialog">
+    <form id="transactionForm" method="dialog">
+      <div class="dialog-heading"><div><p class="eyebrow" id="transactionDialogEyebrow">NEW ENTRY</p><h2 id="transactionDialogTitle">Add transaction</h2></div><button type="button" class="icon-button" data-close-dialog aria-label="Close">×</button></div>
+      <input id="transactionId" type="hidden">
+      <label>Description<input id="transactionDescription" maxlength="160" autocomplete="off" required placeholder="Merchant or source"></label>
+      <div class="form-row"><label>Amount<div class="money-input"><span>$</span><input id="transactionAmount" inputmode="decimal" required placeholder="0.00"></div></label><label>Type<select id="transactionType"><option value="expense">Expense</option><option value="income">Income</option><option value="transfer">Transfer</option></select></label></div>
+      <div class="form-row"><label>Category<select id="transactionCategory"></select></label><label>Date<input id="transactionDate" type="date" required></label></div>
+      <label>Note <span class="optional">Optional</span><textarea id="transactionNote" rows="3" maxlength="300" placeholder="Anything worth remembering"></textarea></label>
+      <div class="dialog-actions"><button type="button" class="secondary-action" data-close-dialog>Cancel</button><button type="submit" class="primary-action">Save transaction</button></div>
+    </form>
+  </dialog>
 
-    <!-- Tabs container for switching between Transactions and Budget Worksheet views -->
-    <div class="card tabs-container">
-      <!-- Tab navigation buttons -->
-      <div class="tabs">
-        <button class="tab active" data-tab="transactions">Transactions</button>
-        <button class="tab" data-tab="worksheet">Budget Worksheet</button>
-      </div>
-      
-      <!-- Transactions tab content -->
-      <div class="tab-content active" id="transactionsTab">
-        <!-- Search and filter controls -->
-        <div class="row" style="margin-top: var(--space-lg);">
-          <div class="field">
-            <label for="search">Search</label>
-            <input id="search" placeholder="Description or category" />
-          </div>
-          <div class="field">
-            <label for="filterType">Type</label>
-            <select id="filterType">
-              <option value="all">All</option>
-              <option value="income">Income</option>
-              <option value="expense">Expense</option>
-            </select>
-          </div>
-        </div>
-        <!-- Transaction list (dynamically populated by JavaScript) -->
-        <ul id="list" style="margin-top: var(--space-lg);"></ul>
-      </div>
-      
-      <!-- Budget Worksheet tab content -->
-      <div class="tab-content" id="worksheetTab">
-        <!-- Sub-tabs for worksheet sections (dynamically populated) -->
-        <div class="sub-tabs" id="worksheetSubTabs"></div>
-        <!-- Worksheet content (dynamically populated) -->
-        <div id="worksheet"></div>
-      </div>
-    </div>
-  </main>
-  
-  <!-- Main application JavaScript -->
-  <script src="script.js"></script>
+  <div id="toast" class="toast" role="status" aria-live="polite"><span id="toastMessage"></span><button id="toastAction" class="text-button hidden"></button></div>
+  <template id="emptyStateTemplate"><div class="empty-state"><strong>Nothing here yet</strong><span></span></div></template>
+  <script type="module" src="script.js"></script>
 </body>
 </html>
