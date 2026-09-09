@@ -1,10 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compareMonths, compareRecentWeeks, localISODate, normalizeImportedDate, normalizeTransaction, parseCSV, parseOFX, resolveStatementDate, selectNewestState, summarizeMonth, toCents, transactionFingerprint } from '../core.js';
+import { compareMonths, compareRecentWeeks, localISODate, normalizeCategory, normalizeImportedDate, normalizeTransaction, parseCSV, parseOFX, resolveStatementDate, selectNewestState, summarizeMonth, toCents, transactionFingerprint } from '../core.js';
 
 test('money is stored in integer cents', () => {
   assert.equal(toCents('12.34'), 1234);
   assert.equal(toCents(0.1 + 0.2), 30);
+  assert.equal(toCents('1,250.00'), 125000);
+  assert.equal(toCents('12 dollars'), null);
+  assert.equal(toCents('1,25.00'), null);
+});
+
+test('legacy categories are mapped without discarding the original label', () => {
+  const transaction = normalizeTransaction({ description: 'Weekly costs', amount: 25, type: 'expense', cat: 'Food', date: '2026-09-01' });
+  assert.equal(normalizeCategory('Debt & Monthly Obligations'), 'Debt');
+  assert.equal(transaction.category, 'Groceries');
+  assert.equal(transaction.legacyCategory, 'Food');
 });
 
 test('localISODate uses local calendar components', () => {
@@ -37,6 +47,11 @@ test('CSV import rejects impossible and missing dates', () => {
   assert.equal(normalizeImportedDate('02/30/2026'), null);
 });
 
+test('CSV import treats positive signed amounts as income', () => {
+  const result = parseCSV('Date,Description,Amount\n2026-09-01,Paycheck,2500.00\n2026-09-02,Rent,-1200.00');
+  assert.deepEqual(result.map(transaction => transaction.type), ['income', 'expense']);
+});
+
 test('OFX import reads posted transactions', () => {
   const result = parseOFX('<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260905120000<TRNAMT>-19.95<FITID>abc<NAME>CAFE</STMTTRN>');
   assert.equal(result.length, 1);
@@ -57,6 +72,15 @@ test('OFX FITIDs keep identical legitimate charges distinct while matching reimp
   assert.equal(result.length, 2);
   assert.notEqual(transactionFingerprint(result[0]), transactionFingerprint(result[1]));
   assert.equal(transactionFingerprint(result[0]), transactionFingerprint({ ...result[0], id: 'different-local-id' }));
+});
+
+test('OFX FITIDs are scoped to their source account', () => {
+  const result = parseOFX([
+    '<STMTRS><BANKACCTFROM><BANKID>1<ACCTID>checking</BANKACCTFROM><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260905<TRNAMT>-8<FITID>shared<NAME>CAFE</STMTTRN></BANKTRANLIST></STMTRS>',
+    '<STMTRS><BANKACCTFROM><BANKID>1<ACCTID>savings</BANKACCTFROM><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260905<TRNAMT>-8<FITID>shared<NAME>CAFE</STMTTRN></BANKTRANLIST></STMTRS>'
+  ].join(''));
+  assert.equal(result.length, 2);
+  assert.notEqual(transactionFingerprint(result[0]), transactionFingerprint(result[1]));
 });
 
 test('statement dates use the statement period, including across New Year', () => {

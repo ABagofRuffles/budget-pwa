@@ -19,7 +19,12 @@ export const CATEGORIES = [
 export const CATEGORY_NAMES = CATEGORIES.map(category => category.name);
 
 export function toCents(value) {
-  const number = typeof value === 'number' ? value : Number.parseFloat(value);
+  let number = value;
+  if (typeof value === 'string') {
+    const clean = value.trim();
+    if (!/^[+-]?\$?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)$/.test(clean)) return null;
+    number = Number(clean.replace('$', '').replaceAll(',', ''));
+  }
   if (!Number.isFinite(number)) return null;
   return Math.round(number * 100);
 }
@@ -88,6 +93,8 @@ export function normalizeTransaction(transaction) {
     ? Math.abs(transaction.amountCents)
     : Math.abs(toCents(transaction.amount) ?? 0);
   const date = isValidDate(transaction.date) ? transaction.date : localISODate();
+  const suppliedCategory = String(transaction.category ?? transaction.cat ?? '').trim().slice(0, 100);
+  const legacyCategory = String(transaction.legacyCategory || (!CATEGORY_NAMES.includes(suppliedCategory) ? suppliedCategory : '')).trim().slice(0, 100);
   if (!description || !cents || cents > 99999999999) return null;
   return {
     id: String(transaction.id || crypto.randomUUID()),
@@ -95,13 +102,37 @@ export function normalizeTransaction(transaction) {
     description,
     amountCents: cents,
     type,
-    category: CATEGORY_NAMES.includes(transaction.category || transaction.cat)
-      ? (transaction.category || transaction.cat)
-      : inferCategory(description, type),
+    category: normalizeCategory(suppliedCategory, description, type),
+    ...(legacyCategory ? { legacyCategory } : {}),
     date,
     note: String(transaction.note || '').trim().slice(0, 300),
     createdAt: transaction.createdAt || new Date().toISOString()
   };
+}
+
+export function normalizeCategory(value, description = '', type = 'expense') {
+  if (type === 'income') return 'Other';
+  if (type === 'transfer') return 'Transfers';
+  const category = String(value || '').trim();
+  if (CATEGORY_NAMES.includes(category)) return category;
+  const normalized = category.toLowerCase();
+  const legacyRules = [
+    ['Housing', /housing|rent|mortgage|home/],
+    ['Utilities', /utilit|electric|water|internet|phone|cable|trash/],
+    ['Groceries', /food|grocer|market/],
+    ['Dining', /dining|restaurant|lunch/],
+    ['Transportation', /transport|gas|fuel|parking|toll|auto|car/],
+    ['Healthcare', /health|medical|dental|medication|pharmacy/],
+    ['Debt', /debt|loan|obligation|credit card/],
+    ['Shopping', /shopping|clothing/],
+    ['Entertainment', /entertainment|recreation|hobby|movie|concert|sport/],
+    ['Subscriptions', /subscription|streaming|membership/],
+    ['Travel', /travel|vacation|hotel|flight/],
+    ['Personal', /personal|education|tuition|school|child|dependent|daycare/],
+    ['Gifts', /gift|birthday|holiday|charit/],
+    ['Transfers', /transfer/]
+  ];
+  return legacyRules.find(([, pattern]) => pattern.test(normalized))?.[0] || inferCategory(description, type);
 }
 
 export function inferCategory(description, type = 'expense') {
@@ -231,8 +262,14 @@ export function parseCSV(text) {
   return rows.map(values => {
     const record = Object.fromEntries(headers.map((header, index) => [header, values[index] || '']));
     const rawAmount = record.amount || record.debit || record.credit;
-    const amount = Number.parseFloat(String(rawAmount).replace(/[$,()]/g, '').replace(/^\s*-/, '-'));
-    const inferredType = record.type?.toLowerCase() || (record.credit ? 'income' : amount < 0 ? 'expense' : 'expense');
+    const rawAmountText = String(rawAmount).trim();
+    const parenthesized = /^\(.*\)$/.test(rawAmountText);
+    const cleanedAmount = rawAmountText.replace(/[,$()\s]/g, '');
+    if (!/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(cleanedAmount)) return null;
+    const parsedAmount = Number(cleanedAmount);
+    const amount = parenthesized ? -Math.abs(parsedAmount) : parsedAmount;
+    const inferredType = record.type?.toLowerCase()
+      || (record.credit ? 'income' : record.debit ? 'expense' : amount > 0 ? 'income' : 'expense');
     const date = normalizeImportedDate(record.date);
     if (!date) return null;
     return normalizeTransaction({
@@ -291,26 +328,35 @@ export function resolveStatementDate(value, statementText) {
 }
 
 export function parseOFX(text) {
-  const blocks = text.match(/<STMTTRN>[\s\S]*?(?=<STMTTRN>|<\/BANKTRANLIST>|$)/gi) || [];
-  return blocks.map(block => {
-    const get = tag => block.match(new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i'))?.[1]?.trim() || '';
-    const amount = Number.parseFloat(get('TRNAMT'));
-    const transactionType = get('TRNTYPE').toUpperCase();
-    const dateRaw = get('DTPOSTED');
-    const date = /^\d{8}/.test(dateRaw)
-      ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`
-      : null;
-    if (!isValidDate(date)) return null;
-    const sourceId = get('FITID');
-    return normalizeTransaction({
-      id: sourceId || crypto.randomUUID(),
-      sourceId,
-      description: get('NAME') || get('MEMO'),
-      amount: Math.abs(amount),
-      type: transactionType === 'XFER' ? 'transfer' : amount >= 0 ? 'income' : 'expense',
-      date
-    });
-  }).filter(Boolean);
+  const getFrom = (source, tag) => source.match(new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i'))?.[1]?.trim() || '';
+  const institution = [getFrom(text, 'ORG'), getFrom(text, 'FID')].filter(Boolean).join(':');
+  const statements = text.match(/<(?:STMTRS|CCSTMTRS|INVSTMTRS)>[\s\S]*?(?=<\/(?:STMTRS|CCSTMTRS|INVSTMTRS)>|<(?:STMTRS|CCSTMTRS|INVSTMTRS)>|$)/gi) || [text];
+  return statements.flatMap(statement => {
+    const accountScope = [institution, getFrom(statement, 'BANKID'), getFrom(statement, 'ACCTID'), getFrom(statement, 'ACCTTYPE')]
+      .filter(Boolean)
+      .join(':') || 'unknown-account';
+    const blocks = statement.match(/<STMTTRN>[\s\S]*?(?=<STMTTRN>|<\/BANKTRANLIST>|$)/gi) || [];
+    return blocks.map(block => {
+      const get = tag => block.match(new RegExp(`<${tag}>([^<\\r\\n]+)`, 'i'))?.[1]?.trim() || '';
+      const amount = Number.parseFloat(get('TRNAMT'));
+      const transactionType = get('TRNTYPE').toUpperCase();
+      const dateRaw = get('DTPOSTED');
+      const date = /^\d{8}/.test(dateRaw)
+        ? `${dateRaw.slice(0, 4)}-${dateRaw.slice(4, 6)}-${dateRaw.slice(6, 8)}`
+        : null;
+      if (!isValidDate(date)) return null;
+      const fitId = get('FITID');
+      const sourceId = fitId ? `ofx|${accountScope}|${fitId}` : '';
+      return normalizeTransaction({
+        id: sourceId || crypto.randomUUID(),
+        sourceId,
+        description: get('NAME') || get('MEMO'),
+        amount: Math.abs(amount),
+        type: transactionType === 'XFER' ? 'transfer' : amount >= 0 ? 'income' : 'expense',
+        date
+      });
+    }).filter(Boolean);
+  });
 }
 
 export function escapeCSV(value) {

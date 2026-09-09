@@ -271,12 +271,12 @@ function renderTransactionRow(transaction, actions = true, selectable = false) {
   const descriptionStrong = document.createElement('strong');
   descriptionStrong.textContent = transaction.description;
   const note = document.createElement('small');
-  note.textContent = transaction.note || transaction.category;
+  note.textContent = transaction.note || transaction.legacyCategory || transaction.category;
   description.append(descriptionStrong, note);
 
   const category = document.createElement('span');
   category.className = 'transaction-category';
-  category.textContent = transaction.category;
+  category.textContent = transaction.legacyCategory || transaction.category;
 
   const date = document.createElement('time');
   date.className = 'transaction-date';
@@ -465,7 +465,13 @@ function renderPlan() {
       input.value = fromCents(budget.categories[category.name] || 0).toFixed(2);
       input.dataset.category = category.name;
       input.addEventListener('change', () => {
-        budget.categories[category.name] = Math.max(0, toCents(input.value) || 0);
+        const cents = toCents(input.value);
+        if (cents === null || cents < 0) {
+          input.value = fromCents(budget.categories[category.name] || 0).toFixed(2);
+          showToast('Enter a valid amount, such as 1,250.00.');
+          return;
+        }
+        budget.categories[category.name] = cents;
         queueSave();
         renderAll();
       });
@@ -503,12 +509,15 @@ function saveTransaction(event) {
   event.preventDefault();
   const id = elements.transactionId.value;
   const type = elements.transactionType.value;
+  const existing = id ? state.transactions.find(item => item.id === id) : null;
+  const selectedCategory = type === 'income' ? 'Other' : type === 'transfer' ? 'Transfers' : elements.transactionCategory.value;
   const transaction = normalizeTransaction({
     id: id || crypto.randomUUID(),
     description: elements.transactionDescription.value,
     amount: elements.transactionAmount.value,
     type,
-    category: type === 'income' ? 'Other' : type === 'transfer' ? 'Transfers' : elements.transactionCategory.value,
+    category: selectedCategory,
+    legacyCategory: existing?.category === selectedCategory ? existing.legacyCategory : '',
     date: elements.transactionDate.value,
     note: elements.transactionNote.value,
     createdAt: id ? state.transactions.find(item => item.id === id)?.createdAt : new Date().toISOString()
@@ -756,7 +765,13 @@ function bindEvents() {
     if (!elements.transactionId.value && elements.transactionType.value === 'expense') elements.transactionCategory.value = inferCategory(elements.transactionDescription.value);
   });
   elements.incomeTarget.addEventListener('change', () => {
-    monthBudget().incomeTargetCents = Math.max(0, toCents(elements.incomeTarget.value) || 0);
+    const cents = toCents(elements.incomeTarget.value);
+    if (cents === null || cents < 0) {
+      elements.incomeTarget.value = fromCents(monthBudget().incomeTargetCents).toFixed(2);
+      showToast('Enter a valid amount, such as 1,250.00.');
+      return;
+    }
+    monthBudget().incomeTargetCents = cents;
     queueSave();
     renderAll();
   });
